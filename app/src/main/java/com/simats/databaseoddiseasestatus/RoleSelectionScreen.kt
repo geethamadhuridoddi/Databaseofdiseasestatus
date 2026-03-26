@@ -2,25 +2,12 @@ package com.simats.databaseoddiseasestatus
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SupervisorAccount
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,25 +55,28 @@ fun RoleSelectionScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Role(
-                    roleName = "Admin",
-                    icon = Icons.Filled.SupervisorAccount,
-                    onClick = { navController.navigate("registration") }
-                )
-                Role(
                     roleName = "Doctor",
                     icon = Icons.Filled.Person,
-                    onClick = { navController.navigate("registration") }
+                    onClick = { 
+                        if (navController.graph != null) {
+                            navController.navigate("login") 
+                        }
+                    }
                 )
             }
             Spacer(modifier = Modifier.height(48.dp))
             Button(
-                onClick = { navController.navigate("login") },
+                onClick = { 
+                    if (navController.graph != null) {
+                        navController.navigate("registration") 
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 elevation = null
             ) {
                 Text(
-                    text = "Already have an account? Login",
+                    text = "Don't have an account? Register",
                     color = MaterialTheme.colorScheme.primary
                 )
             }

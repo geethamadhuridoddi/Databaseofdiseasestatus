@@ -1,16 +1,17 @@
 package com.simats.databaseoddiseasestatus
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -22,44 +23,93 @@ import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
 
 @Composable
 fun ThankYouScreen(navController: NavController) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF3F51B5)),
-        contentAlignment = Alignment.Center
+            .background(Color(0xFFE1F5FE))
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+        // Header Bar (Reference from Login)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .background(Color(0xFF03A9F4)),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_check_circle),
-                contentDescription = "Success",
-                tint = Color.Green,
-                modifier = Modifier.size(100.dp)
+            Text(
+                text = "MediTrack",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Circular Logo Section (Reference from Login logo)
+            Box(
+                modifier = Modifier
+                    .size(160.dp)
+                    .background(Color(0xFF03A9F4).copy(alpha = 0.1f), shape = CircleShape)
+                    .padding(12.dp)
+                    .background(Color(0xFF03A9F4), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Success",
+                    tint = Color.White,
+                    modifier = Modifier.size(80.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
             Text(
                 text = "Thank You!",
-                color = Color.White,
+                color = Color(0xFF01579B),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text(
-                text = "Thank you for using MediTrack\nYour session has been saved successfully",
-                color = Color.White,
+                text = "Your session has been saved successfully.\nThank you for using MediTrack.",
+                color = Color(0xFF0288D1),
                 textAlign = TextAlign.Center,
-                fontSize = 16.sp
+                fontSize = 16.sp,
+                lineHeight = 22.sp
             )
-            Spacer(modifier = Modifier.height(40.dp))
-            Button(
-                onClick = { navController.navigate("login") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                modifier = Modifier.fillMaxWidth(0.8f)
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Return Button (Reference from Login Authenticate button)
+            OutlinedButton(
+                onClick = { 
+                    if (navController.graph != null) {
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                border = BorderStroke(1.5.dp, Color(0xFF03A9F4)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF03A9F4)),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Return to Home", color = Color(0xFF3F51B5), fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Return to Home",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

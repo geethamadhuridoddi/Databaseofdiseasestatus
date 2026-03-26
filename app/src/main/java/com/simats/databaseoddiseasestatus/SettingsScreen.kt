@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -111,17 +110,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                OutlinedButton(
-                    onClick = { navController.navigate("activity_log") },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.History, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("View Activity Log")
-                }
-
                 Spacer(modifier = Modifier.weight(1f))
 
                 Button(

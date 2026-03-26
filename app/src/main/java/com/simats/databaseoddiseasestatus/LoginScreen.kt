@@ -1,37 +1,17 @@
 package com.simats.databaseoddiseasestatus
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,15 +30,21 @@ import androidx.navigation.compose.rememberNavController
 fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = viewModel()) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rememberMe by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
 
     val loginState by authViewModel.loginState.collectAsState()
 
     LaunchedEffect(loginState) {
         if (loginState is LoginResult.Success) {
+            val response = (loginState as LoginResult.Success).response
+            val userEmail = response.email?.takeIf { it.isNotBlank() } ?: "unknown_doctor"
+            val nameToUse = response.name?.takeIf { it.isNotBlank() } ?: "Doctor"
+            
             if (navController.graph != null) {
-                navController.navigate("dashboard") {
+                val encodedEmail = android.net.Uri.encode(userEmail)
+                val encodedName = android.net.Uri.encode(nameToUse)
+                val userId = response.userId ?: -1
+                navController.navigate("dashboard/$encodedEmail?userName=$encodedName&userId=$userId") {
                     popUpTo("login") { inclusive = true }
                 }
                 authViewModel.resetLoginState()
@@ -66,11 +52,27 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF0F4F8))
+            .background(Color(0xFFE1F5FE)) // Light blue background from reference
     ) {
+        // Header Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .background(Color(0xFF03A9F4)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "MediTrack",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -78,71 +80,128 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Login Icon",
-                tint = Color(0xFF00A6A6),
-                modifier = Modifier.size(100.dp)
-            )
-            Text(
-                text = "Login",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 32.dp)
-            )
+            // Circular Logo Section
+            Box(
+                modifier = Modifier
+                    .size(160.dp)
+                    .background(Color(0xFF03A9F4).copy(alpha = 0.1f), shape = CircleShape)
+                    .padding(12.dp)
+                    .background(Color(0xFF03A9F4), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.HealthAndSafety,
+                        contentDescription = "Doctor Icon",
+                        tint = Color.White,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Hi Doctor!",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
 
             when (val state = loginState) {
                 is LoginResult.Error -> {
                     Text(
                         text = state.message,
                         color = Color.Red,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 16.dp),
                         textAlign = TextAlign.Center
                     )
                 }
                 LoginResult.Loading -> {
-                    CircularProgressIndicator(color = Color(0xFF00A6A6), modifier = Modifier.padding(bottom = 16.dp))
+                    CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.padding(bottom = 16.dp))
                 }
                 else -> {}
             }
 
-            OutlinedTextField(
+            // Input Fields
+            TextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth()
+                placeholder = { Text("Email Address:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color(0xFF01579B),
+                    unfocusedTextColor = Color(0xFF01579B)
+                ),
+                shape = RoundedCornerShape(4.dp)
             )
+
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
+
+            TextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                placeholder = { Text("Password:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color(0xFF01579B),
+                    unfocusedTextColor = Color(0xFF01579B)
+                ),
+                shape = RoundedCornerShape(4.dp),
                 trailingIcon = {
-                    val image = if (passwordVisible)
-                        Icons.Filled.Visibility
-                    else Icons.Filled.VisibilityOff
-
-                    val description = if (passwordVisible) "Hide password" else "Show password"
-
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(imageVector = image, contentDescription = description)
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = null,
+                            tint = Color(0xFF03A9F4)
+                        )
                     }
                 }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Authenticate Button
+            OutlinedButton(
+                onClick = {
+                    if (email.isNotBlank() && password.isNotBlank()) {
+                        authViewModel.loginUser(mapOf("email" to email, "password" to password))
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                border = BorderStroke(1.5.dp, Color(0xFF03A9F4)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF03A9F4)),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Authenticate",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Additional Options (kept for functionality but styled subtly)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = rememberMe, onCheckedChange = { rememberMe = it })
-                    Text("Remember me")
-                }
                 Text(
                     text = "Forgot password?",
                     modifier = Modifier.clickable { 
@@ -150,35 +209,24 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
                             navController.navigate("forgot_password") 
                         }
                     },
-                    color = Color(0xFF00A6A6)
+                    color = Color(0xFF0288D1),
+                    fontSize = 14.sp
                 )
-            }
-            Spacer(modifier = Modifier.height(32.dp))
-            Button(
-                onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
-                        authViewModel.loginUser(mapOf("email" to email, "password" to password))
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6A6)),
-                enabled = loginState !is LoginResult.Loading
-            ) {
-                Text("Login", color = Color.White)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row {
-                Text("Don't have an account? ")
-                Text(
-                    text = "Sign up",
-                    modifier = Modifier.clickable { 
-                        if (navController.graph != null) {
-                            navController.navigate("registration") 
-                        }
-                    },
-                    color = Color(0xFF00A6A6),
-                    fontWeight = FontWeight.Bold
-                )
+                
+                Row {
+                    Text("New here? ", fontSize = 14.sp, color = Color.Gray)
+                    Text(
+                        text = "Sign up",
+                        modifier = Modifier.clickable { 
+                            if (navController.graph != null) {
+                                navController.navigate("register")
+                            }
+                        },
+                        color = Color(0xFF0288D1),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }

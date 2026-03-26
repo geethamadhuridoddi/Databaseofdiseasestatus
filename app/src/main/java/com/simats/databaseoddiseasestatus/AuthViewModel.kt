@@ -9,6 +9,12 @@ import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import com.google.gson.Gson
+import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 
 class AuthViewModel : ViewModel() {
 
@@ -30,21 +36,43 @@ class AuthViewModel : ViewModel() {
     private val _dashboardState = MutableStateFlow<DashboardResult>(DashboardResult.Idle)
     val dashboardState: StateFlow<DashboardResult> = _dashboardState
 
+    private fun handleApiError(errorBody: String?): String {
+        if (errorBody == null) return "An unknown error occurred"
+        return if (errorBody.contains("<!DOCTYPE html>", ignoreCase = true) || errorBody.contains("<html>", ignoreCase = true)) {
+            "Server error: Requested page not found or server misconfigured. Please contact support."
+        } else {
+            errorBody
+        }
+    }
+
     fun registerUser(userData: Map<String, Any>) {
         _registrationState.value = RegistrationResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.registerUser(userData).enqueue(object : Callback<RegistrationResponse> {
-                override fun onResponse(call: Call<RegistrationResponse>, response: Response<RegistrationResponse>) {
+            val body = Gson().toJson(userData).toRequestBody("application/json".toMediaTypeOrNull())
+            ApiClient.instance.registerUser(body).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _registrationState.value = RegistrationResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val registrationResponse = Gson().fromJson(jsonString, RegistrationResponse::class.java)
+                            if (registrationResponse != null) {
+                                _registrationState.value = RegistrationResult.Success(registrationResponse)
+                            } else {
+                                _registrationState.value = RegistrationResult.Error("Empty response from server")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AuthViewModel", "Parsing error", e)
+                            _registrationState.value = RegistrationResult.Error("Failed to process registration data")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "Registration failed. Please try again."
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
                         Log.e("AuthViewModel", "Error: $errorMsg")
                         _registrationState.value = RegistrationResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<RegistrationResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _registrationState.value = RegistrationResult.Error("Network error: ${t.localizedMessage}")
                 }
@@ -55,18 +83,31 @@ class AuthViewModel : ViewModel() {
     fun loginUser(credentials: Map<String, String>) {
         _loginState.value = LoginResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.loginUser(credentials).enqueue(object : Callback<LoginResponse> {
-                override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
+            val body = Gson().toJson(credentials).toRequestBody("application/json".toMediaTypeOrNull())
+            ApiClient.instance.loginUser(body).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _loginState.value = LoginResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val loginResponse = Gson().fromJson(jsonString, LoginResponse::class.java)
+                            if (loginResponse != null) {
+                                _loginState.value = LoginResult.Success(loginResponse)
+                            } else {
+                                _loginState.value = LoginResult.Error("Invalid login response")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AuthViewModel", "Login Parsing error", e)
+                            _loginState.value = LoginResult.Error("Failed to process login data")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "Login failed. Please check your credentials."
-                        Log.e("AuthViewModel", "Error: $errorMsg")
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
+                        Log.e("AuthViewModel", "Login API Error: $errorMsg")
                         _loginState.value = LoginResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _loginState.value = LoginResult.Error("Network error: ${t.localizedMessage}")
                 }
@@ -77,18 +118,26 @@ class AuthViewModel : ViewModel() {
     fun forgotPassword(emailData: Map<String, String>) {
         _forgotPasswordState.value = ForgotPasswordResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.forgotPassword(emailData).enqueue(object : Callback<GenericResponse> {
-                override fun onResponse(call: Call<GenericResponse>, response: Response<GenericResponse>) {
+            val body = Gson().toJson(emailData).toRequestBody("application/json".toMediaTypeOrNull())
+            ApiClient.instance.forgotPassword(body).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _forgotPasswordState.value = ForgotPasswordResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val genericResponse = Gson().fromJson(jsonString, GenericResponse::class.java)
+                            _forgotPasswordState.value = ForgotPasswordResult.Success(genericResponse)
+                        } catch (e: Exception) {
+                            _forgotPasswordState.value = ForgotPasswordResult.Error("Failed to process response")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "Failed to send reset code. Please check your email."
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
                         Log.e("AuthViewModel", "Error: $errorMsg")
                         _forgotPasswordState.value = ForgotPasswordResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<GenericResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _forgotPasswordState.value = ForgotPasswordResult.Error("Network error: ${t.localizedMessage}")
                 }
@@ -99,18 +148,26 @@ class AuthViewModel : ViewModel() {
     fun verifyForgotOtp(otpData: Map<String, String>) {
         _verifyOtpState.value = VerifyOtpResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.verifyForgotOtp(otpData).enqueue(object : Callback<GenericResponse> {
-                override fun onResponse(call: Call<GenericResponse>, response: Response<GenericResponse>) {
+            val body = Gson().toJson(otpData).toRequestBody("application/json".toMediaTypeOrNull())
+            ApiClient.instance.verifyForgotOtp(body).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _verifyOtpState.value = VerifyOtpResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val genericResponse = Gson().fromJson(jsonString, GenericResponse::class.java)
+                            _verifyOtpState.value = VerifyOtpResult.Success(genericResponse)
+                        } catch (e: Exception) {
+                            _verifyOtpState.value = VerifyOtpResult.Error("Failed to parse OTP response")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "OTP verification failed."
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
                         Log.e("AuthViewModel", "Error: $errorMsg")
                         _verifyOtpState.value = VerifyOtpResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<GenericResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _verifyOtpState.value = VerifyOtpResult.Error("Network error: ${t.localizedMessage}")
                 }
@@ -121,18 +178,26 @@ class AuthViewModel : ViewModel() {
     fun resetPassword(resetData: Map<String, String>) {
         _resetPasswordState.value = ResetPasswordResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.resetPassword(resetData).enqueue(object : Callback<GenericResponse> {
-                override fun onResponse(call: Call<GenericResponse>, response: Response<GenericResponse>) {
+            val body = Gson().toJson(resetData).toRequestBody("application/json".toMediaTypeOrNull())
+            ApiClient.instance.resetPassword(body).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _resetPasswordState.value = ResetPasswordResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val genericResponse = Gson().fromJson(jsonString, GenericResponse::class.java)
+                            _resetPasswordState.value = ResetPasswordResult.Success(genericResponse)
+                        } catch (e: Exception) {
+                            _resetPasswordState.value = ResetPasswordResult.Error("Failed to parse response")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "Password reset failed."
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
                         Log.e("AuthViewModel", "Error: $errorMsg")
                         _resetPasswordState.value = ResetPasswordResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<GenericResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _resetPasswordState.value = ResetPasswordResult.Error("Network error: ${t.localizedMessage}")
                 }
@@ -140,21 +205,33 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun fetchDashboardStats() {
+    fun fetchDashboardStats(userId: Int?) {
         _dashboardState.value = DashboardResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.getDashboardStats().enqueue(object : Callback<DashboardResponse> {
-                override fun onResponse(call: Call<DashboardResponse>, response: Response<DashboardResponse>) {
+            ApiClient.instance.getDashboardStats(userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
-                        _dashboardState.value = DashboardResult.Success(response.body()!!)
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val dashboardResponse = Gson().fromJson(jsonString, DashboardResponse::class.java)
+                            if (dashboardResponse != null) {
+                                _dashboardState.value = DashboardResult.Success(dashboardResponse)
+                            } else {
+                                _dashboardState.value = DashboardResult.Error("Critical dashboard data missing")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AuthViewModel", "Dashboard Parsing error", e)
+                            _dashboardState.value = DashboardResult.Error("Failed to process overview data")
+                        }
                     } else {
-                        val errorMsg = response.errorBody()?.string() ?: "Failed to fetch dashboard stats."
-                        Log.e("AuthViewModel", "Error: $errorMsg")
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                        val errorMsg = handleApiError(errorBody)
+                        Log.e("AuthViewModel", "Dashboard API Error: $errorMsg")
                         _dashboardState.value = DashboardResult.Error(errorMsg)
                     }
                 }
 
-                override fun onFailure(call: Call<DashboardResponse>, t: Throwable) {
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     Log.e("AuthViewModel", "Failure: ${t.message}")
                     _dashboardState.value = DashboardResult.Error("Network error: ${t.localizedMessage}")
                 }

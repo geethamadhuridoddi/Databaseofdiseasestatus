@@ -51,7 +51,7 @@ fun OnboardingScreen(navController: NavController) {
             .padding(16.dp),
     ) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            TextButton(onClick = { navController.navigate("role_selection") }) {
+            TextButton(onClick = { navController.navigate("login") }) {
                 Text(text = "Skip")
             }
         }
@@ -85,7 +85,7 @@ fun OnboardingScreen(navController: NavController) {
         Button(
             onClick = {
                 if (pagerState.currentPage == onboardingPages.size - 1) {
-                    navController.navigate("role_selection")
+                    navController.navigate("login")
                 } else {
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)

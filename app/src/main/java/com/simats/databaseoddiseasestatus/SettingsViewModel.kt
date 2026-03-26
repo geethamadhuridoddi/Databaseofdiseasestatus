@@ -6,6 +6,10 @@ import androidx.lifecycle.ViewModel
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import com.google.gson.Gson
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 
 class SettingsViewModel : ViewModel() {
     private val apiService = ApiClient.instance
@@ -21,17 +25,23 @@ class SettingsViewModel : ViewModel() {
 
     fun fetchSettings() {
         _isLoading.value = true
-        apiService.getSettings().enqueue(object : Callback<SettingsResponse> {
-            override fun onResponse(call: Call<SettingsResponse>, response: Response<SettingsResponse>) {
+        apiService.getSettings().enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 _isLoading.value = false
-                if (response.isSuccessful) {
-                    _settings.value = response.body()
+                if (response.isSuccessful && response.body() != null) {
+                    try {
+                        val jsonString = response.body()!!.string()
+                        _settings.value = Gson().fromJson(jsonString, SettingsResponse::class.java)
+                    } catch (e: Exception) {
+                        _error.value = "Failed to parse settings"
+                    }
                 } else {
-                    _error.value = "Failed to fetch settings"
+                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch settings"
+                    _error.value = if (errorBody.contains("<!DOCTYPE html>")) "Server error fetching settings." else errorBody
                 }
             }
 
-            override fun onFailure(call: Call<SettingsResponse>, t: Throwable) {
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                 _isLoading.value = false
                 _error.value = "Error: ${t.message}"
             }
@@ -41,19 +51,28 @@ class SettingsViewModel : ViewModel() {
     fun saveSettings(theme: String, language: String, onComplete: (Boolean) -> Unit) {
         _isLoading.value = true
         val settingsData = mapOf("theme" to theme, "language" to language)
-        apiService.saveSettings(settingsData).enqueue(object : Callback<SaveSettingsResponse> {
-            override fun onResponse(call: Call<SaveSettingsResponse>, response: Response<SaveSettingsResponse>) {
+        val body = Gson().toJson(settingsData).toRequestBody("application/json".toMediaTypeOrNull())
+        apiService.saveSettings(body).enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 _isLoading.value = false
-                if (response.isSuccessful) {
-                    _settings.value = response.body()?.settings
-                    onComplete(true)
+                if (response.isSuccessful && response.body() != null) {
+                    try {
+                        val jsonString = response.body()!!.string()
+                        val result = Gson().fromJson(jsonString, SaveSettingsResponse::class.java)
+                        _settings.value = result?.settings
+                        onComplete(true)
+                    } catch (e: Exception) {
+                        _error.value = "Failed to parse save settings response"
+                        onComplete(false)
+                    }
                 } else {
-                    _error.value = "Failed to save settings"
+                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to save settings"
+                    _error.value = if (errorBody.contains("<!DOCTYPE html>")) "Server error saving settings." else errorBody
                     onComplete(false)
                 }
             }
 
-            override fun onFailure(call: Call<SaveSettingsResponse>, t: Throwable) {
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                 _isLoading.value = false
                 _error.value = "Error: ${t.message}"
                 onComplete(false)

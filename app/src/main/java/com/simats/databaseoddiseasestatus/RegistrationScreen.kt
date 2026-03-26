@@ -1,11 +1,14 @@
 package com.simats.databaseoddiseasestatus
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -13,14 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,171 +49,225 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
         return null
     }
 
-    // Safely handle navigation when registration is successful
     LaunchedEffect(registrationState) {
         if (registrationState is RegistrationResult.Success) {
-            // Use try-catch or check for graph to prevent crash if navigated too early
-            try {
+            if (navController.graph != null) {
                 navController.navigate("login") {
                     popUpTo("registration") { inclusive = true }
                 }
                 authViewModel.resetRegistrationState()
-            } catch (e: Exception) {
-                // If graph is not set yet, we can't navigate. 
-                // In a real app, you might want to retry or log this.
             }
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF0F4F8))
+            .background(Color(0xFFE1F5FE))
     ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("") },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                )
-            },
-            containerColor = Color.Transparent
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // Header Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .background(Color(0xFF03A9F4)),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "MediTrack Logo",
-                    tint = Color(0xFF00A6A6),
-                    modifier = Modifier.size(100.dp)
-                )
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "Sign Up to get started.",
-                    fontSize = 24.sp,
+                    text = "MediTrack",
+                    color = Color.White,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 32.dp)
+                    modifier = Modifier.padding(end = 48.dp) // Balance the back button
                 )
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Fullname") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = {
-                        password = it
-                        passwordError = validatePassword(it)
-                    },
-                    label = { Text("Password") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = image, "toggle password visibility")
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Circular Logo Section
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .background(Color(0xFF03A9F4).copy(alpha = 0.1f), shape = CircleShape)
+                    .padding(8.dp)
+                    .background(Color(0xFF03A9F4), shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.HealthAndSafety,
+                        contentDescription = "Doctor Icon",
+                        tint = Color.White,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Join Us!",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            when (val state = registrationState) {
+                is RegistrationResult.Error -> {
+                    Text(state.message, color = Color.Red, fontSize = 14.sp, modifier = Modifier.padding(bottom = 16.dp))
+                }
+                RegistrationResult.Loading -> {
+                    CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.padding(bottom = 16.dp))
+                }
+                else -> {}
+            }
+
+            // Input Fields
+            TextField(
+                value = fullName,
+                onValueChange = { fullName = it },
+                placeholder = { Text("Full Name:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextField(
+                value = email,
+                onValueChange = { email = it },
+                placeholder = { Text("Email Address:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextField(
+                value = password,
+                onValueChange = {
+                    password = it
+                    passwordError = validatePassword(it)
+                },
+                placeholder = { Text("Password:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(4.dp),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = null,
+                            tint = Color(0xFF03A9F4)
+                        )
+                    }
+                }
+            )
+            passwordError?.let { Text(it, color = Color.Red, fontSize = 11.sp) }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextField(
+                value = confirmPassword,
+                onValueChange = {
+                    confirmPassword = it
+                    confirmPasswordError = if (it != password) "Passwords do not match." else null
+                },
+                placeholder = { Text("Confirm Password:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
+                visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFB3E5FC),
+                    unfocusedContainerColor = Color(0xFFB3E5FC),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(4.dp),
+                trailingIcon = {
+                    IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                        Icon(
+                            imageVector = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = null,
+                            tint = Color(0xFF03A9F4)
+                        )
+                    }
+                }
+            )
+            confirmPasswordError?.let { Text(it, color = Color.Red, fontSize = 11.sp) }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Authenticate (Sign Up) Button
+            OutlinedButton(
+                onClick = {
+                    passwordError = validatePassword(password)
+                    confirmPasswordError = if (password != confirmPassword) "Passwords do not match." else null
+                    if (passwordError == null && confirmPasswordError == null) {
+                        val userData = mapOf(
+                            "full_name" to fullName,
+                            "email" to email,
+                            "password" to password,
+                            "confirm_password" to confirmPassword
+                        )
+                        authViewModel.registerUser(userData)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                border = BorderStroke(1.5.dp, Color(0xFF03A9F4)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF03A9F4)),
+                shape = RoundedCornerShape(8.dp),
+                enabled = registrationState !is RegistrationResult.Loading
+            ) {
+                Text("Create Account", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row {
+                Text("Already have an account? ", fontSize = 14.sp, color = Color.Gray)
+                Text(
+                    text = "Login",
+                    modifier = Modifier.clickable { 
+                        if (navController.graph != null) {
+                            navController.navigate("login") 
                         }
                     },
-                    isError = passwordError != null
-                )
-                passwordError?.let {
-                    Text(it, color = Color.Red, fontSize = 12.sp)
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = {
-                        confirmPassword = it
-                        confirmPasswordError = if (it != password) "Passwords do not match." else null
-                    },
-                    label = { Text("Confirm Password") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image = if (confirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                            Icon(imageVector = image, "toggle confirm password visibility")
-                        }
-                    },
-                    isError = confirmPasswordError != null
-                )
-                confirmPasswordError?.let {
-                    Text(it, color = Color.Red, fontSize = 12.sp)
-                }
-                Spacer(modifier = Modifier.height(32.dp))
-
-                when (val state = registrationState) {
-                    is RegistrationResult.Error -> {
-                        Text(state.message, color = Color.Red, modifier = Modifier.padding(bottom = 16.dp))
-                    }
-                    RegistrationResult.Loading -> {
-                        CircularProgressIndicator(modifier = Modifier.padding(bottom = 16.dp))
-                    }
-                    else -> {}
-                }
-
-                Button(
-                    onClick = {
-                        passwordError = validatePassword(password)
-                        confirmPasswordError = if (password != confirmPassword) "Passwords do not match." else null
-                        if (passwordError == null && confirmPasswordError == null) {
-                            val userData = mapOf(
-                                "full_name" to fullName,
-                                "email" to email,
-                                "password" to password,
-                                "confirm_password" to confirmPassword
-                            )
-                            authViewModel.registerUser(userData)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00A6A6)),
-                    enabled = fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() && confirmPassword.isNotBlank()
-                ) {
-                    Text("Sign Up", color = Color.White)
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                val annotatedText = buildAnnotatedString {
-                    append("Already have an account? ")
-                    pushStringAnnotation(tag = "LOGIN", annotation = "login")
-                    withStyle(style = SpanStyle(color = Color(0xFF00A6A6), textDecoration = TextDecoration.Underline)) {
-                        append("Login")
-                    }
-                    pop()
-                }
-
-                ClickableText(
-                    text = annotatedText,
-                    onClick = { offset ->
-                        annotatedText.getStringAnnotations(tag = "LOGIN", start = offset, end = offset)
-                            .firstOrNull()?.let {
-                                try {
-                                    navController.navigate("login")
-                                } catch (e: Exception) {
-                                    // Handle cases where graph is not yet set
-                                }
-                            }
-                    }
+                    color = Color(0xFF0288D1),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
                 )
             }
         }

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "database od disease status"
+rootProject.name = "MediTrack"
 include(":app")
  

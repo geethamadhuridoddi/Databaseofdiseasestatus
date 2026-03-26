@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -24,13 +25,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadReportScreen(navController: NavController) {
+fun DownloadReportScreen(navController: NavController, userId: Int = -1) {
     var selectedFormat by remember { mutableStateOf("pdf") }
     val context = LocalContext.current
 
@@ -38,17 +40,37 @@ fun DownloadReportScreen(navController: NavController) {
     DisposableEffect(Unit) {
         val onDownloadComplete = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
-                if (id != -1L) {
-                    Toast.makeText(context, "Download Completed! Check your Downloads folder.", Toast.LENGTH_LONG).show()
+                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: -1L
+                if (id != -1L && context != null) {
+                    val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    val query = DownloadManager.Query().setFilterById(id)
+                    val cursor: Cursor = downloadManager.query(query)
+                    if (cursor.moveToFirst()) {
+                        val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                        val status = cursor.getInt(statusIndex)
+                        if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                            Toast.makeText(context, "Download Completed! Check your Downloads folder.", Toast.LENGTH_LONG).show()
+                        } else {
+                            val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
+                            val reason = cursor.getInt(reasonIndex)
+                            Log.e("DownloadReport", "Download failed with status $status, reason: $reason")
+                            Toast.makeText(context, "Download Failed. Reason: $reason", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    cursor.close()
                 }
             }
         }
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(onDownloadComplete, filter, Context.RECEIVER_NOT_EXPORTED)
+            context.registerReceiver(onDownloadComplete, filter, Context.RECEIVER_EXPORTED)
         } else {
-            context.registerReceiver(onDownloadComplete, filter)
+            ContextCompat.registerReceiver(
+                context,
+                onDownloadComplete,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         }
 
         onDispose {
@@ -79,30 +101,35 @@ fun DownloadReportScreen(navController: NavController) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Select Format", style = MaterialTheme.typography.titleMedium)
+                    Text("Select Export Format", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(16.dp))
-                    FormatSelector(text = "PDF", selected = selectedFormat == "pdf") { selectedFormat = "pdf" }
-                    FormatSelector(text = "Excel", selected = selectedFormat == "excel") { selectedFormat = "excel" }
-                    FormatSelector(text = "CSV", selected = selectedFormat == "csv") { selectedFormat = "csv" }
+                    
+                    FormatSelector("PDF Document (.pdf)", selectedFormat == "pdf") { selectedFormat = "pdf" }
+                    FormatSelector("Excel Spreadsheet (.xlsx)", selectedFormat == "excel") { selectedFormat = "excel" }
+                    FormatSelector("CSV File (.csv)", selectedFormat == "csv") { selectedFormat = "csv" }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
             Button(
-                onClick = {
-                    downloadFile(context, selectedFormat)
-                },
-                modifier = Modifier.fillMaxWidth()
+                onClick = { downloadFile(context, selectedFormat, userId) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5))
             ) {
-                Icon(Icons.Default.Download, contentDescription = "Download")
+                Icon(Icons.Default.Download, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Download ${selectedFormat.uppercase()}")
+                Text("Generate & Download ${selectedFormat.uppercase()}")
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Note: If you are using an emulator, ensure the server is running on your host machine. If you are using a real device, ensure it's on the same network as the server.",
+                "The report will be saved to your device's Downloads folder.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
@@ -110,23 +137,27 @@ fun DownloadReportScreen(navController: NavController) {
     }
 }
 
-private fun downloadFile(context: Context, format: String) {
-    // Using the IP from ApiClient. If on emulator, you might need to change it to 10.0.2.2 in ApiClient.kt
-    val url = "${ApiClient.BASE_URL}reports/download/?format=$format"
-    
-    Log.d("DownloadReport", "Attempting download from: $url")
-    
-    val extension = when (format) {
-        "excel" -> "xlsx"
-        else -> format
+private fun downloadFile(context: Context, format: String, userId: Int = -1) {
+    val url = if (userId != -1) {
+        "${ApiClient.BASE_URL}reports/download/?format=$format&user_id=$userId"
+    } else {
+        "${ApiClient.BASE_URL}reports/download/?format=$format"
     }
-    val fileName = "patient_report_${System.currentTimeMillis()}.$extension"
+    
+    val (extension, mimeType) = when (format) {
+        "excel" -> "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "csv" -> "csv" to "text/csv"
+        else -> "pdf" to "application/pdf"
+    }
+    
+    val fileName = "Patient_Report_${System.currentTimeMillis()}.$extension"
 
     try {
         val uri = Uri.parse(url)
         val request = DownloadManager.Request(uri)
-            .setTitle("Report: $fileName")
-            .setDescription("Downloading patient report from server...")
+            .setTitle(fileName)
+            .setDescription("Downloading medical report...")
+            .setMimeType(mimeType)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
             .setAllowedOverMetered(true)
@@ -134,27 +165,32 @@ private fun downloadFile(context: Context, format: String) {
 
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         downloadManager.enqueue(request)
-        
-        Toast.makeText(context, "Download started. Check notifications.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Download started...", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Log.e("DownloadReport", "Download failed to enqueue", e)
-        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        Log.e("DownloadReport", "Download failed", e)
+        Toast.makeText(context, "Failed to start download: ${e.message}", Toast.LENGTH_LONG).show()
     }
 }
 
 @Composable
 private fun FormatSelector(text: String, selected: Boolean, onClick: () -> Unit) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White
-        ),
-        elevation = CardDefaults.cardElevation(if (selected) 4.dp else 1.dp)
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
     ) {
-        Text(text, modifier = Modifier.padding(16.dp))
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = selected, onClick = onClick)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text)
+        }
     }
 }
 

@@ -1,8 +1,9 @@
 package com.simats.databaseoddiseasestatus
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
@@ -28,19 +29,51 @@ import java.util.Locale
 fun AddDiseaseScreen(
     navController: NavController, 
     patientId: String?, 
+    doctorName: String? = null,
+    userId: Int = -1,
     viewModel: DiseaseViewModel = viewModel()
 ) {
-    val patient = globalPatients.find { it.id == patientId }
+    val patient = globalPatients.find { it.id.toString() == patientId }
     val context = LocalContext.current
     val addState by viewModel.addDiseaseState.collectAsState()
 
+    var diseaseName by remember { mutableStateOf("") }
+    var diagnosisDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var severity by remember { mutableStateOf("Medium") }
+    var status by remember { mutableStateOf("Active") }
+    var assignedDoctor by remember { mutableStateOf(doctorName ?: "") }
+    var notes by remember { mutableStateOf("") }
+    val showDatePicker = remember { mutableStateOf(false) }
+
     LaunchedEffect(addState) {
         if (addState is AddDiseaseResult.Success) {
+            // Update local state for immediate feedback
+            patient?.let { p ->
+                val newDisease = Disease(
+                    name = diseaseName,
+                    status = status,
+                    severity = severity,
+                    diagnosisDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(diagnosisDateMillis)),
+                    doctorPrimary = assignedDoctor,
+                    notes = notes
+                )
+                val currentDiseases = p.diseases?.toMutableList() ?: mutableListOf()
+                currentDiseases.add(newDisease)
+                p.diseases = currentDiseases
+            }
             Toast.makeText(context, "Disease added successfully", Toast.LENGTH_SHORT).show()
             viewModel.resetAddDiseaseState()
             navController.popBackStack()
         } else if (addState is AddDiseaseResult.Error) {
-            Toast.makeText(context, (addState as AddDiseaseResult.Error).message, Toast.LENGTH_LONG).show()
+            val rawError = (addState as AddDiseaseResult.Error).message
+            val displayError = if (rawError.contains("\"error\":")) {
+                rawError.substringAfter("\"error\": \"").substringBefore("\"").replace("\\", "")
+            } else if (rawError.contains("\"message\":")) {
+                rawError.substringAfter("\"message\": \"").substringBefore("\"")
+            } else {
+                rawError
+            }
+            Toast.makeText(context, displayError, Toast.LENGTH_LONG).show()
             viewModel.resetAddDiseaseState()
         }
     }
@@ -51,14 +84,6 @@ fun AddDiseaseScreen(
         }
         return
     }
-
-    var diseaseName by remember { mutableStateOf("") }
-    var diagnosisDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    var severity by remember { mutableStateOf("Medium") }
-    var status by remember { mutableStateOf("Active") }
-    var assignedDoctor by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    val showDatePicker = remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -82,9 +107,11 @@ fun AddDiseaseScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Text("Patient: ${patient.name} (ID: ${patient.id})")
+            Text("Patient: ${patient.name} (ID: ${patient.id})", fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(16.dp))
+            
             OutlinedTextField(
                 value = diseaseName,
                 onValueChange = { diseaseName = it },
@@ -92,6 +119,7 @@ fun AddDiseaseScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
+            
             OutlinedTextField(
                 value = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(diagnosisDateMillis)),
                 onValueChange = {},
@@ -105,6 +133,7 @@ fun AddDiseaseScreen(
                 }
             )
             Spacer(modifier = Modifier.height(16.dp))
+            
             Text("Severity *", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = severity == "Low", onClick = { severity = "Low" }, label = { Text("Low") })
@@ -113,6 +142,7 @@ fun AddDiseaseScreen(
                 FilterChip(selected = severity == "Critical", onClick = { severity = "Critical" }, label = { Text("Critical") })
             }
             Spacer(modifier = Modifier.height(16.dp))
+            
             Text("Status *", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = status == "Active", onClick = { status = "Active" }, label = { Text("Active") })
@@ -121,6 +151,7 @@ fun AddDiseaseScreen(
                 FilterChip(selected = status == "Critical", onClick = { status = "Critical" }, label = { Text("Critical") })
             }
             Spacer(modifier = Modifier.height(16.dp))
+            
             OutlinedTextField(
                 value = assignedDoctor,
                 onValueChange = { assignedDoctor = it },
@@ -128,6 +159,7 @@ fun AddDiseaseScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
+            
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
@@ -147,26 +179,30 @@ fun AddDiseaseScreen(
                         val trimmedDoctor = assignedDoctor.trim()
 
                         if (trimmedName.isBlank() || trimmedDoctor.isBlank() || patientId.isNullOrBlank()) {
-                            val missing = mutableListOf<String>()
-                            if (trimmedName.isBlank()) missing.add("Disease Name")
-                            if (trimmedDoctor.isBlank()) missing.add("Doctor")
-                            if (patientId.isNullOrBlank()) missing.add("Patient ID")
-                            
-                            Toast.makeText(context, "Missing fields: ${missing.joinToString(", ")}", Toast.LENGTH_SHORT).show()
-                            Log.e("AddDisease", "Validation failed. Missing: $missing")
+                            Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         
-                        val diseaseData = mapOf(
+                        // Using a comprehensive map to cover all potential backend field names
+                        val diseaseData = mutableMapOf<String, Any>(
+                            "user_id" to userId,
                             "patient_id" to (patientId.toIntOrNull() ?: patientId),
+                            "patient" to (patientId.toIntOrNull() ?: patientId),
+                            "disease_name" to trimmedName,
+                            "disease" to trimmedName,
                             "name" to trimmedName,
                             "status" to status,
                             "severity" to severity,
                             "diagnosis_date" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(diagnosisDateMillis)),
+                            "doctor" to trimmedDoctor,
+                            "doctor_name" to trimmedDoctor,
                             "assigned_doctor" to trimmedDoctor,
                             "notes" to notes.trim()
                         )
-                        viewModel.addDisease(diseaseData)
+                        if (userId != -1) {
+                            diseaseData["user_id"] = userId
+                        }
+                        viewModel.assignDisease(diseaseData)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5))

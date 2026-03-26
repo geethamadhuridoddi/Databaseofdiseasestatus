@@ -20,8 +20,8 @@ import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditPatientScreen(navController: NavController, patientId: String?, viewModel: PatientViewModel = viewModel()) {
-    val patient = globalPatients.find { it.id == patientId }
+fun EditPatientScreen(navController: NavController, patientId: String?, userId: Int = -1, viewModel: PatientViewModel = viewModel()) {
+    val patient = globalPatients.find { it.id.toString() == patientId }
     val context = LocalContext.current
     val updateState by viewModel.updatePatientState.collectAsState()
 
@@ -47,11 +47,11 @@ fun EditPatientScreen(navController: NavController, patientId: String?, viewMode
         return
     }
 
-    var name by remember { mutableStateOf(patient.name) }
-    var age by remember { mutableStateOf(patient.age.toString()) }
-    var gender by remember { mutableStateOf(patient.gender) }
-    var phone by remember { mutableStateOf(patient.phoneNumber) }
-    var address by remember { mutableStateOf(patient.address) }
+    var name by remember { mutableStateOf(patient.name ?: "") }
+    var age by remember { mutableStateOf(patient.age?.toString() ?: "") }
+    var gender by remember { mutableStateOf(patient.gender ?: "") }
+    var phone by remember { mutableStateOf(patient.displayPhone) }
+    var address by remember { mutableStateOf(patient.address ?: "") }
 
     Scaffold(
         topBar = {
@@ -121,14 +121,23 @@ fun EditPatientScreen(navController: NavController, patientId: String?, viewMode
             } else {
                 Button(
                     onClick = {
-                        val patientData = mapOf(
+                        val patientData = mutableMapOf<String, Any>(
                             "name" to name,
-                            "age" to age,
+                            "age" to (age.toIntOrNull() ?: 0),
                             "gender" to gender,
                             "phone_number" to phone,
+                            "phone" to phone,
+                            "phoneNumber" to phone,
+                            "phone_no" to phone,
+                            "phoneNo" to phone,
+                            "mobile" to phone,
+                            "contact" to phone,
                             "address" to address
                         )
-                        patientId?.let { viewModel.updatePatient(it, patientData) }
+                        if (userId != -1) {
+                            patientData["user_id"] = userId
+                        }
+                        patientId?.let { viewModel.updatePatient(it, patientData, userId = if (userId != -1) userId else null) }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5))

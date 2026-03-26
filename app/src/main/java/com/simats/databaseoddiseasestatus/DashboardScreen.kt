@@ -1,6 +1,7 @@
 package com.simats.databaseoddiseasestatus
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,11 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Assessment
@@ -26,10 +29,12 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
+import java.util.Locale
 
 // Color Palette
 val indigoBlue = Color(0xFF3F51B5)
@@ -56,6 +62,9 @@ val lightRed = Color(0xFFFFEBEE)
 @Composable
 fun DashboardScreen(
     navController: NavController, 
+    userEmail: String,
+    userName: String? = null,
+    userId: Int = -1,
     authViewModel: AuthViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
@@ -67,7 +76,7 @@ fun DashboardScreen(
     val dashboardState by authViewModel.dashboardState.collectAsState()
 
     LaunchedEffect(Unit) {
-        authViewModel.fetchDashboardStats()
+        authViewModel.fetchDashboardStats(if (userId != -1) userId else null)
         notificationViewModel.fetchUnreadCount()
     }
 
@@ -83,7 +92,7 @@ fun DashboardScreen(
             ) {
                 Column {
                     Text("Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text("Welcome back", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("Welcome back, ${userName ?: "Doctor"}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
                 Row {
                     BadgedBox(badge = {
@@ -97,7 +106,12 @@ fun DashboardScreen(
                             Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = indigoBlue)
                         }
                     }
-                    IconButton(onClick = { navController.navigate("profile") }) {
+                    IconButton(onClick = { 
+                        val safeEmail = userEmail.ifBlank { "unknown@email.com" }
+                        val encodedEmail = android.net.Uri.encode(safeEmail)
+                        val encodedName = android.net.Uri.encode(userName ?: "Doctor")
+                        navController.navigate("profile/$encodedEmail?userName=$encodedName&userId=$userId")
+                    }) {
                         Icon(Icons.Default.Person, contentDescription = "Profile", tint = indigoBlue)
                     }
                 }
@@ -116,9 +130,12 @@ fun DashboardScreen(
                         onClick = {
                             selectedItem = index
                             when (item) {
-                                "Patients" -> navController.navigate("patients")
-                                "Diseases" -> navController.navigate("diseases")
-                                "Reports" -> navController.navigate("reports")
+                                "Patients" -> {
+                                    val nameToPass = userName?.takeIf { it.isNotBlank() } ?: "Doctor"
+                                    navController.navigate("patients?doctorName=${android.net.Uri.encode(nameToPass)}&userId=$userId")
+                                }
+                                "Diseases" -> navController.navigate("diseases?userId=$userId")
+                                "Reports" -> navController.navigate("reports?userId=$userId")
                                 "Settings" -> navController.navigate("settings")
                             }
                         },
@@ -132,23 +149,6 @@ fun DashboardScreen(
                     )
                 }
             }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { /* TODO: Handle chatbot click */ },
-                containerColor = Color.Transparent, 
-                contentColor = Color.White,
-                modifier = Modifier
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(Color(0xFF5C6BC0), Color(0xFF3F51B5))
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp), spotColor = indigoBlue)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Chatbot")
-            }
         }
     ) { paddingValues ->
         Column(
@@ -159,7 +159,8 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            
+            Spacer(modifier = Modifier.height(16.dp))
 
             when (val state = dashboardState) {
                 is DashboardResult.Loading -> {
@@ -177,89 +178,112 @@ fun DashboardScreen(
                 }
                 is DashboardResult.Success -> {
                     val stats = state.response
-                    val activeCases = stats.statusSummary.find { it.status == "Active" }?.count ?: 0
-                    val recovering = stats.statusSummary.find { it.status == "Recovering" }?.count ?: 0
-                    val critical = stats.statusSummary.find { it.status == "Critical" }?.count ?: 0
+                    val recoveryRate = if (stats.totalCases > 0) {
+                        (stats.recoveringCases.toDouble() / stats.totalCases * 100)
+                    } else 0.0
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        DashboardCard(title = "Total Patients", value = stats.totalPatients.toString(), trend = "+13.9%", trendIcon = Icons.Default.ArrowUpward, iconColor = Color.Green, cardIcon = Icons.Default.People, modifier = Modifier.weight(1f), cardColor = lightBlue, iconBackgroundColor = Color(0xFF0D47A1), valueColor = Color(0xFF000080))
-                        DashboardCard(title = "Active Cases", value = activeCases.toString(), trend = "+13.8%", trendIcon = Icons.Default.ArrowUpward, iconColor = Color.Green, cardIcon = Icons.Default.NorthEast, modifier = Modifier.weight(1f), cardColor = lightGreen, iconBackgroundColor = Color(0xFF1B5E20), valueColor = Color(0xFF004D40))
+                        DashboardCard(
+                            title = "Total Cases", 
+                            value = stats.totalCases.toString(), 
+                            trend = "+13.9%", 
+                            trendIcon = Icons.Default.ArrowUpward, 
+                            iconColor = Color.Green, 
+                            cardIcon = Icons.Default.People, 
+                            modifier = Modifier.weight(1f), 
+                            cardColor = lightBlue, 
+                            iconBackgroundColor = Color(0xFF0D47A1), 
+                            valueColor = Color(0xFF000080),
+                            onClick = {
+                                val nameToPass = userName?.takeIf { it.isNotBlank() } ?: "Doctor"
+                                navController.navigate("patients?doctorName=${android.net.Uri.encode(nameToPass)}&filter=HasDisease&userId=$userId")
+                            }
+                        )
+                        DashboardCard(
+                            title = "Active Cases", 
+                            value = stats.activeCases.toString(), 
+                            trend = "+13.8%", 
+                            trendIcon = Icons.Default.ArrowUpward, 
+                            iconColor = Color.Green, 
+                            cardIcon = Icons.Default.NorthEast, 
+                            modifier = Modifier.weight(1f), 
+                            cardColor = lightGreen, 
+                            iconBackgroundColor = Color(0xFF1B5E20), 
+                            valueColor = Color(0xFF004D40),
+                            onClick = {
+                                val nameToPass = userName?.takeIf { it.isNotBlank() } ?: "Doctor"
+                                navController.navigate("patients?doctorName=${android.net.Uri.encode(nameToPass)}&filter=Active&userId=$userId")
+                            }
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        DashboardCard(title = "Recovering Patients", value = recovering.toString(), trend = "-2.0%", trendIcon = Icons.Default.ArrowDownward, iconColor = Color.Red, cardIcon = Icons.Default.Healing, modifier = Modifier.weight(1f), cardColor = lightYellow, iconBackgroundColor = Color(0xFFFF8F00), valueColor = Color(0xFFE65100))
-                        DashboardCard(title = "Critical Cases", value = critical.toString(), trend = "+5.0%", trendIcon = Icons.Default.ArrowUpward, iconColor = Color.Green, cardIcon = Icons.Default.Warning, modifier = Modifier.weight(1f), cardColor = lightRed, iconBackgroundColor = Color(0xFFB71C1C), valueColor = Color(0xFFD50000))
+                        DashboardCard(
+                            title = "Recovering Patients", 
+                            value = stats.recoveringCases.toString(), 
+                            trend = "-2.0%", 
+                            trendIcon = Icons.Default.ArrowDownward, 
+                            iconColor = Color.Red, 
+                            cardIcon = Icons.Default.Healing, 
+                            modifier = Modifier.weight(1f), 
+                            cardColor = lightYellow, 
+                            iconBackgroundColor = Color(0xFFFF8F00), 
+                            valueColor = Color(0xFFE65100),
+                            onClick = {
+                                val nameToPass = userName?.takeIf { it.isNotBlank() } ?: "Doctor"
+                                navController.navigate("patients?doctorName=${android.net.Uri.encode(nameToPass)}&filter=Recovering&userId=$userId")
+                            }
+                        )
+                        DashboardCard(
+                            title = "Critical Cases", 
+                            value = stats.criticalCases.toString(), 
+                            trend = "+5.0%", 
+                            trendIcon = Icons.Default.ArrowUpward, 
+                            iconColor = Color.Green, 
+                            cardIcon = Icons.Default.Warning, 
+                            modifier = Modifier.weight(1f), 
+                            cardColor = lightRed, 
+                            iconBackgroundColor = Color(0xFFB71C1C), 
+                            valueColor = Color(0xFFD50000),
+                            onClick = {
+                                val nameToPass = userName?.takeIf { it.isNotBlank() } ?: "Doctor"
+                                navController.navigate("patients?doctorName=${android.net.Uri.encode(nameToPass)}&filter=Critical&userId=$userId")
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(8.dp, RoundedCornerShape(20.dp)),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Weekly Insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Patient Volume Trend", color = Color.DarkGray)
+                                Text("+13.9%", fontWeight = FontWeight.Bold, color = Color.Green)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Disease Cases Trend", color = Color.DarkGray)
+                                Text("+13.8%", fontWeight = FontWeight.Bold, color = Color(0xFF2962FF))
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Recovery Rate", color = Color.DarkGray)
+                                Text(String.format(Locale.US, "%.1f%%", recoveryRate), fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
+                            }
+                        }
                     }
                 }
                 else -> {}
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Recovery & Critical Cases Trends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = indigoBlue)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                            .background(
-                                Color.LightGray.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .padding(2.dp)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    listOf(
-                                        lightGreen.copy(alpha = 0.5f),
-                                        lightRed.copy(alpha = 0.5f)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Chart will be displayed here", textAlign = TextAlign.Center, color = Color.Gray)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Weekly Insights", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Patient Volume Trend", color = Color.DarkGray)
-                        Text("+13.9%", fontWeight = FontWeight.Bold, color = Color.Green)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Disease Cases Trend", color = Color.DarkGray)
-                        Text("+13.8%", fontWeight = FontWeight.Bold, color = Color(0xFF2962FF))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Recovery Rate", color = Color.DarkGray)
-                        Text("23.0%", fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
-                    }
-                }
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -277,12 +301,14 @@ fun DashboardCard(
     modifier: Modifier = Modifier,
     cardColor: Color,
     iconBackgroundColor: Color,
-    valueColor: Color
+    valueColor: Color,
+    onClick: () -> Unit
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
+            .shadow(8.dp, RoundedCornerShape(20.dp))
+            .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
@@ -310,6 +336,6 @@ fun DashboardCard(
 @Composable
 fun DashboardScreenPreview() {
     DatabaseOdDiseaseStatusTheme {
-        DashboardScreen(navController = rememberNavController())
+        DashboardScreen(navController = rememberNavController(), userEmail = "doctor@example.com")
     }
 }

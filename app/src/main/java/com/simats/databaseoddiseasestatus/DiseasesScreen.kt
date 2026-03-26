@@ -22,16 +22,26 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
 
+// Global holder for the currently selected disease catalog item
+var selectedDiseaseCatalogItem: DiseaseCatalogItem? = null
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiseasesScreen(navController: NavController, viewModel: DiseaseViewModel = viewModel()) {
+fun DiseasesScreen(
+    navController: NavController, 
+    userId: Int = -1,
+    diseaseViewModel: DiseaseViewModel = viewModel(),
+    patientViewModel: PatientViewModel = viewModel()
+) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSeverity by remember { mutableStateOf<String?>(null) } // null for All
 
-    val diseasesState by viewModel.diseasesState.collectAsState()
+    val diseasesState by diseaseViewModel.diseasesState.collectAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.fetchDiseases()
+    // Fetch diseases and patients from DB
+    LaunchedEffect(userId) {
+        diseaseViewModel.fetchDiseases(userId = if (userId != -1) userId else null)
+        patientViewModel.fetchPatients(userId = if (userId != -1) userId else null)
     }
 
     Scaffold(
@@ -80,14 +90,23 @@ fun DiseasesScreen(navController: NavController, viewModel: DiseaseViewModel = v
                     is DiseasesResult.Loading -> {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
+                    is DiseasesResult.Error -> {
+                        Text(
+                            text = state.message,
+                            color = Color.Red,
+                            modifier = Modifier.align(Alignment.Center).padding(16.dp)
+                        )
+                    }
                     is DiseasesResult.Success -> {
-                        val filteredDiseases = state.diseases.filter { disease ->
-                            val nameMatches = disease.name.contains(searchQuery, ignoreCase = true)
-                            val severityMatches = selectedSeverity == null || disease.defaultSeverity.equals(selectedSeverity, ignoreCase = true)
+                        val filteredData = state.diseases.filter { disease ->
+                            val nameMatches = disease.displayName.contains(searchQuery, ignoreCase = true) || 
+                                             (disease.patientName ?: "").contains(searchQuery, ignoreCase = true)
+                            val severityMatches = selectedSeverity == null || 
+                                                 (disease.severity ?: "").equals(selectedSeverity, ignoreCase = true)
                             nameMatches && severityMatches
                         }
                         
-                        if (filteredDiseases.isEmpty()) {
+                        if (filteredData.isEmpty()) {
                             Text("No diseases found.", modifier = Modifier.align(Alignment.Center))
                         } else {
                             LazyColumn(
@@ -95,20 +114,20 @@ fun DiseasesScreen(navController: NavController, viewModel: DiseaseViewModel = v
                                     .fillMaxSize()
                                     .padding(top = 8.dp)
                             ) {
-                                items(filteredDiseases) { disease ->
-                                    DiseaseListItem(disease = disease, onClick = {
-                                        navController.navigate("disease_details/0/${disease.id}")
-                                    })
+                                items(filteredData) { diseaseItem ->
+                                    DiseaseCatalogListItem(
+                                        diseaseItem = diseaseItem,
+                                        onClick = {
+                                            val rid = diseaseItem.recordId
+                                            if (rid != null) {
+                                                selectedDiseaseCatalogItem = diseaseItem
+                                                navController.navigate("disease_details_record/$rid?userId=$userId")
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
-                    }
-                    is DiseasesResult.Error -> {
-                        Text(
-                            text = state.message,
-                            color = Color.Red,
-                            modifier = Modifier.align(Alignment.Center).padding(16.dp)
-                        )
                     }
                     else -> {}
                 }
@@ -118,19 +137,28 @@ fun DiseasesScreen(navController: NavController, viewModel: DiseaseViewModel = v
 }
 
 @Composable
-fun DiseaseListItem(disease: DiseaseCatalogItem, onClick: () -> Unit) {
+fun DiseaseCatalogListItem(diseaseItem: DiseaseCatalogItem, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable(onClick = onClick),
+            .clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(disease.name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(diseaseItem.displayName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(diseaseItem.status ?: "Unknown Status", style = MaterialTheme.typography.bodySmall, color = Color(0xFF3F51B5))
+            }
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Default Severity: ${disease.defaultSeverity}")
+            Text("Patient: ${diseaseItem.patientName ?: "Unknown"}", fontSize = 16.sp)
+            Text("Doctor: ${diseaseItem.doctor ?: "Not Assigned"}", fontSize = 14.sp)
+            Text("Severity: ${diseaseItem.severity ?: "N/A"}", fontSize = 14.sp, color = Color.Gray)
         }
     }
 }

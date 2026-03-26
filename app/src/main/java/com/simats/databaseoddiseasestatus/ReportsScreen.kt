@@ -25,16 +25,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportsScreen(navController: NavController, viewModel: ReportViewModel = viewModel()) {
+fun ReportsScreen(navController: NavController, userId: Int = -1, viewModel: ReportViewModel = viewModel()) {
     val summary by viewModel.summary
-    val totalPatients by viewModel.totalPatients
+    val dashboardStats by viewModel.dashboardStats
     val isLoading by viewModel.isLoading
 
     LaunchedEffect(Unit) {
-        viewModel.fetchReportData()
+        viewModel.fetchReportData(if (userId != -1) userId else null)
     }
 
     Scaffold(
@@ -66,29 +67,27 @@ fun ReportsScreen(navController: NavController, viewModel: ReportViewModel = vie
                     .padding(16.dp)
             ) {
                 item {
+                    val totalCases = dashboardStats?.totalCases ?: summary?.totalCases ?: 0
+                    val recoveryRate = dashboardStats?.let {
+                        if (it.totalCases > 0) {
+                            (it.recoveringCases.toDouble() / it.totalCases * 100)
+                        } else 0.0
+                    } ?: summary?.recoveryRate ?: 0.0
+
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         ReportStatCard(
                             title = "Total Cases",
-                            value = (summary?.totalCases ?: 0).toString(),
+                            value = totalCases.toString(),
                             icon = Icons.Default.BarChart,
                             modifier = Modifier.weight(1f)
                         )
                         ReportStatCard(
                             title = "Recovery Rate",
-                            value = "${summary?.recoveryRate ?: 0.0}%",
+                            value = String.format(Locale.US, "%.1f%%", recoveryRate),
                             icon = Icons.Default.TrendingUp,
                             modifier = Modifier.weight(1f)
                         )
                     }
-                }
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    ReportStatCard(
-                        title = "Total Patients",
-                        value = totalPatients.toString(),
-                        icon = Icons.Default.BarChart,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
                 item {
                     Text(
@@ -102,15 +101,7 @@ fun ReportsScreen(navController: NavController, viewModel: ReportViewModel = vie
                         icon = Icons.Default.Description,
                         title = "Patient Report",
                         description = "Detailed patient data and statistics",
-                        onClick = { navController.navigate("patient_report") }
-                    )
-                }
-                item {
-                    ReportTypeItem(
-                        icon = Icons.Default.Assessment,
-                        title = "Disease Analytics",
-                        description = "Trend analysis and insights",
-                        onClick = { navController.navigate("disease_analytics") }
+                        onClick = { navController.navigate("patient_report?userId=$userId") }
                     )
                 }
                 item {
@@ -118,7 +109,7 @@ fun ReportsScreen(navController: NavController, viewModel: ReportViewModel = vie
                         icon = Icons.Default.Download,
                         title = "Download Reports",
                         description = "Export data in various formats",
-                        onClick = { navController.navigate("download_report") }
+                        onClick = { navController.navigate("download_report?userId=$userId") }
                     )
                 }
             }

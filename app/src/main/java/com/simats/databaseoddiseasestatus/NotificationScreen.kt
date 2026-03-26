@@ -1,11 +1,15 @@
 package com.simats.databaseoddiseasestatus
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,43 +33,69 @@ fun NotificationsScreen(navController: NavController, viewModel: NotificationVie
         viewModel.fetchNotifications()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Notifications", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { 
-                        globalNotifications.forEach { viewModel.deleteNotification(it.id) }
-                    }) {
-                        Text("Clear All", color = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF3F51B5),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFE1F5FE)) // Light blue background consistent with login
+    ) {
+        // Header Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .background(Color(0xFF03A9F4)),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Notifications",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            )
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { 
+                    (notificationsState as? NotificationsResult.Success)?.notifications?.forEach { 
+                        viewModel.deleteNotification(it.id) 
+                    }
+                }) {
+                    Text("Clear All", color = Color.White, fontSize = 12.sp)
+                }
+            }
         }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+
+        Box(modifier = Modifier.fillMaxSize()) {
             when (val state = notificationsState) {
                 is NotificationsResult.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.align(Alignment.Center))
                 }
                 is NotificationsResult.Success -> {
                     if (state.notifications.isEmpty()) {
-                        Text("No notifications", modifier = Modifier.align(Alignment.Center))
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = Color(0xFF03A9F4).copy(alpha = 0.3f),
+                                modifier = Modifier.size(80.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No new notifications", color = Color(0xFF01579B).copy(alpha = 0.6f))
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(16.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             items(state.notifications.reversed()) { notification ->
                                 NotificationItem(
@@ -95,36 +125,45 @@ fun NotificationItem(notification: Notification, onDelete: () -> Unit, onMarkRea
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            .padding(vertical = 6.dp),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (notification.isRead) Color.White else Color(0xFFE3F2FD)
-        )
+            containerColor = if (notification.isRead) Color.White.copy(alpha = 0.7f) else Color(0xFFB3E5FC)
+        ),
+        border = if (notification.isRead) null else BorderStroke(1.dp, Color(0xFF03A9F4).copy(alpha = 0.3f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = notification.message,
+                    fontSize = 15.sp,
+                    color = Color(0xFF01579B),
                     fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.Bold
                 )
                 notification.createdAt?.let {
-                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF0288D1).copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!notification.isRead) {
-                    TextButton(onClick = onMarkRead) {
-                        Text("Mark Read", fontSize = 12.sp)
+                    TextButton(onClick = onMarkRead, contentPadding = PaddingValues(4.dp)) {
+                        Text("Read", fontSize = 11.sp, color = Color(0xFF0288D1), fontWeight = FontWeight.Bold)
                     }
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(18.dp))
                 }
             }
         }

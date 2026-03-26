@@ -1,11 +1,15 @@
 package com.simats.databaseoddiseasestatus
 
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class ActivityLogViewModel : ViewModel() {
     private val apiService = ApiClient.instance
@@ -21,19 +25,32 @@ class ActivityLogViewModel : ViewModel() {
 
     fun fetchActivityLog() {
         _isLoading.value = true
-        apiService.getActivityLog().enqueue(object : Callback<List<ActivityLogItem>> {
-            override fun onResponse(call: Call<List<ActivityLogItem>>, response: Response<List<ActivityLogItem>>) {
+        _error.value = null
+        apiService.getActivityLog().enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 _isLoading.value = false
-                if (response.isSuccessful) {
-                    _logs.value = response.body() ?: emptyList()
+                if (response.isSuccessful && response.body() != null) {
+                    try {
+                        val jsonString = response.body()!!.string()
+                        val type = object : TypeToken<List<ActivityLogItem>>() {}.type
+                        val logList: List<ActivityLogItem> = Gson().fromJson(jsonString, type)
+                        Log.d("ActivityLogVM", "Fetched ${logList.size} logs")
+                        _logs.value = logList
+                    } catch (e: Exception) {
+                        Log.e("ActivityLogVM", "Parsing error", e)
+                        _error.value = "Failed to parse activity logs"
+                    }
                 } else {
-                    _error.value = "Failed to fetch activity logs"
+                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch activity logs"
+                    Log.e("ActivityLogVM", "Error response: $errorBody")
+                    _error.value = "Server error: $errorBody"
                 }
             }
 
-            override fun onFailure(call: Call<List<ActivityLogItem>>, t: Throwable) {
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                 _isLoading.value = false
-                _error.value = "Error: ${t.message}"
+                Log.e("ActivityLogVM", "Network failure", t)
+                _error.value = "Connection error: ${t.localizedMessage}"
             }
         })
     }
