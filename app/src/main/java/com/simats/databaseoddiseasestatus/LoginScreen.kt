@@ -37,8 +37,8 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
     LaunchedEffect(loginState) {
         if (loginState is LoginResult.Success) {
             val response = (loginState as LoginResult.Success).response
-            val userEmail = response.email?.takeIf { it.isNotBlank() } ?: "unknown_doctor"
-            val nameToUse = response.name?.takeIf { it.isNotBlank() } ?: "Doctor"
+            val userEmail = response.email?.takeIf { it.isNotBlank() } ?: "doctor@meditrack.com"
+            val nameToUse = response.name?.takeIf { it.isNotBlank() } ?: userEmail.split("@").first().replaceFirstChar { it.uppercase() }
             
             if (navController.graph != null) {
                 val encodedEmail = android.net.Uri.encode(userEmail)

@@ -215,7 +215,23 @@ class AuthViewModel : ViewModel() {
                             val jsonString = response.body()!!.string()
                             val dashboardResponse = Gson().fromJson(jsonString, DashboardResponse::class.java)
                             if (dashboardResponse != null) {
-                                _dashboardState.value = DashboardResult.Success(dashboardResponse)
+                                // Fallback calculation if specific case counts are 0 but status_summary has data
+                                val finalResponse = if (dashboardResponse.totalCases == 0 && dashboardResponse.statusSummary != null) {
+                                    val active = dashboardResponse.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
+                                    val recovering = dashboardResponse.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
+                                    val critical = dashboardResponse.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
+                                    val total = dashboardResponse.statusSummary.sumOf { it.count }
+                                    
+                                    dashboardResponse.copy(
+                                        totalCases = total,
+                                        activeCases = active,
+                                        recoveringCases = recovering,
+                                        criticalCases = critical
+                                    )
+                                } else {
+                                    dashboardResponse
+                                }
+                                _dashboardState.value = DashboardResult.Success(finalResponse)
                             } else {
                                 _dashboardState.value = DashboardResult.Error("Critical dashboard data missing")
                             }

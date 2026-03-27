@@ -38,7 +38,7 @@ data class CaseRecord(
             gender = patientGender ?: "Unknown",
             phone = patientPhone ?: "Unknown",
             address = address ?: "Unknown",
-            disease_count = 1,
+            diseaseCount = 1,
             diseases = listOf(
                 Disease(
                     name = diseaseName ?: "Unknown",

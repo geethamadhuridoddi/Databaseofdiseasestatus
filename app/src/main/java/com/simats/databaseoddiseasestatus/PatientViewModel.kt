@@ -64,11 +64,8 @@ class PatientViewModel : ViewModel() {
         _patientsState.value = PatientsResult.Loading
         viewModelScope.launch {
             try {
-                val call = if (!status.isNullOrBlank() && status != "All") {
-                    ApiClient.instance.getCasesByStatus(status.lowercase(), userId = userId)
-                } else {
-                    ApiClient.instance.getPatients(userId = userId)
-                }
+                val apiStatus = if (status != null && status != "All") status.lowercase() else null
+                val call = ApiClient.instance.getPatients(status = apiStatus, userId = userId)
 
                 call.enqueue(object : Callback<ResponseBody> {
                     override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {

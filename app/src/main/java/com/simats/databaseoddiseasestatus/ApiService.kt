@@ -21,9 +21,10 @@ data class RegistrationResponse(
 data class LoginResponse(
     val message: String? = null,
     val error: String? = null,
+    @SerializedName("email", alternate = ["username", "user_email", "login_id"])
     val email: String? = null,
     val name: String? = null,
-    @SerializedName("user_id")
+    @SerializedName("user_id", alternate = ["id", "pk", "userId", "user"])
     val userId: Int? = null
 )
 
@@ -54,22 +55,22 @@ data class UpdatePatientDiseaseResponse(
 )
 
 data class DashboardResponse(
-    @SerializedName("total_patients")
+    @SerializedName("total_patients", alternate = ["patients_count", "total_pats"])
     val totalPatients: Int,
-    @SerializedName("total_diseases")
+    @SerializedName("total_diseases", alternate = ["diseases_count", "total_dis"])
     val totalDiseases: Int,
-    @SerializedName("total_cases")
+    @SerializedName("total_cases", alternate = ["cases_count", "total_records", "total_cases_count"])
     val totalCases: Int,
-    @SerializedName("active_cases")
+    @SerializedName("active_cases", alternate = ["active_count", "active"])
     val activeCases: Int,
-    @SerializedName("recovering_cases")
+    @SerializedName("recovering_cases", alternate = ["recovering_count", "recovering"])
     val recoveringCases: Int,
-    @SerializedName("critical_cases")
+    @SerializedName("critical_cases", alternate = ["critical_count", "critical"])
     val criticalCases: Int,
-    @SerializedName("status_summary")
-    val statusSummary: List<StatusCount>,
-    @SerializedName("disease_summary")
-    val diseaseSummary: List<DiseaseCount>
+    @SerializedName("status_summary", alternate = ["status_counts", "stats"])
+    val statusSummary: List<StatusCount>? = null,
+    @SerializedName("disease_summary", alternate = ["disease_counts", "dis_stats"])
+    val diseaseSummary: List<DiseaseCount>? = null
 )
 
 data class StatusCount(
@@ -84,25 +85,28 @@ data class DiseaseCount(
 )
 
 data class DiseaseCatalogItem(
-    @SerializedName("record_id")
+    @SerializedName("id", alternate = ["record_id", "pk", "disease_id"])
     val recordId: Int?,
     
-    @SerializedName("disease_name")
+    @SerializedName("disease_name", alternate = ["display_name", "disease_display_name"])
     val diseaseName: String? = null,
     
     @SerializedName("disease")
     val disease: String? = null,
     
+    @SerializedName("name")
     val name: String? = null,
     
+    @SerializedName("status", alternate = ["current_status", "condition"])
     val status: String? = null,
-    @SerializedName("patient_id")
+    @SerializedName("patient_id", alternate = ["patient"])
     val patientId: String? = null,
-    @SerializedName("patient_name")
+    @SerializedName("patient_name", alternate = ["patient_display_name"])
     val patientName: String? = null,
     val doctor: String? = null,
+    @SerializedName("severity", alternate = ["level"])
     val severity: String? = null,
-    @SerializedName("diagnosis_date")
+    @SerializedName("diagnosis_date", alternate = ["date"])
     val diagnosisDate: String? = null,
     val notes: String? = null,
     @SerializedName("default_severity")
@@ -127,8 +131,8 @@ data class PatientReportItem(
     val name: String,
     @SerializedName("age", alternate = ["patient_age"])
     val age: String? = null,
-    @SerializedName("diseases", alternate = ["disease_count", "diseases_count", "total_diseases", "count", "num_diseases", "disease", "total", "disease_name", "assigned_diseases", "records", "disease_records", "cases", "total_cases", "num_cases", "disease_count_total"])
-    val diseases: String? = null
+    @SerializedName("diseases_count", alternate = ["disease_count", "total_diseases", "count", "num_diseases", "total", "disease_name", "num_cases", "disease_count_total"])
+    val diseases: Int? = null
 )
 
 data class DiseaseAnalyticsResponse(
@@ -153,10 +157,13 @@ data class SaveSettingsResponse(
 
 // --- Profile Data Classes ---
 data class ProfileResponse(
+    @SerializedName("username", alternate = ["user_email"])
     val username: String? = null,
     val name: String? = null,
     val role: String? = null,
+    @SerializedName("email", alternate = ["username"])
     val email: String? = null,
+    @SerializedName("phone", alternate = ["phone_number", "contact"])
     val phone: String? = null
 )
 
@@ -185,9 +192,6 @@ interface ApiService {
         @Query("status") status: String? = null,
         @Query("user_id") userId: Int? = null
     ): Call<ResponseBody>
-
-    @GET("cases/{status}/")
-    fun getCasesByStatus(@Path("status") status: String, @Query("user_id") userId: Int? = null): Call<ResponseBody>
 
     @GET("patients/{patient_id}/")
     fun getPatient(@Path("patient_id") patientId: String, @Query("user_id") userId: Int?): Call<ResponseBody>
@@ -223,7 +227,7 @@ interface ApiService {
     @POST("diseases/add/")
     fun addDisease(@Body body: RequestBody): Call<ResponseBody>
 
-    @GET("diseases/")
+    @GET("patient-diseases/")
     fun getDiseases(@Query("user_id") userId: Int? = null): Call<ResponseBody>
 
     @PUT("diseases/{disease_id}/update/")

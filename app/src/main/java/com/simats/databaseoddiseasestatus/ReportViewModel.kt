@@ -71,8 +71,26 @@ class ReportViewModel : ViewModel() {
                     try {
                         val jsonString = response.body()!!.string()
                         val stats = Gson().fromJson(jsonString, DashboardResponse::class.java)
-                        _dashboardStats.value = stats
-                        _totalPatients.value = stats?.totalCases ?: 0
+                        
+                        // Fallback calculation if specific case counts are 0 but status_summary has data
+                        val finalStats = if (stats?.totalCases == 0 && stats.statusSummary != null) {
+                            val active = stats.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
+                            val recovering = stats.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
+                            val critical = stats.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
+                            val total = stats.statusSummary.sumOf { it.count }
+                            
+                            stats.copy(
+                                totalCases = total,
+                                activeCases = active,
+                                recoveringCases = recovering,
+                                criticalCases = critical
+                            )
+                        } else {
+                            stats
+                        }
+                        
+                        _dashboardStats.value = finalStats
+                        _totalPatients.value = finalStats?.totalCases ?: 0
                     } catch (e: Exception) {}
                 }
             }

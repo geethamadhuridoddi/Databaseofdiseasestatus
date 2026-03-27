@@ -103,7 +103,7 @@ fun PatientReportScreen(navController: NavController, userId: Int = -1, viewMode
                             val countFromApi = formatDiseaseDisplay(item.diseases)
                             val displayCount = if (countFromApi == "N/A" || countFromApi == "0" || countFromApi == "None") {
                                 val localPatient = globalPatients.find { it.name?.trim()?.lowercase() == item.name.trim().lowercase() }
-                                val localCount = localPatient?.disease_count ?: localPatient?.diseases?.size
+                                val localCount = localPatient?.diseaseCount ?: localPatient?.diseases?.size
                                 if (localCount != null && localCount > 0) localCount.toString() else countFromApi
                             } else {
                                 countFromApi

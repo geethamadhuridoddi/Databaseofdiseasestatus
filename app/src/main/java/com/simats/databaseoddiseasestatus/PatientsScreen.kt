@@ -210,7 +210,7 @@ fun PatientsScreen(
                             
                             val statusMatches = when (filterVal) {
                                 "All" -> true
-                                "HasDisease" -> (patient.disease_count ?: 0) > 0 || !patient.diseases.isNullOrEmpty()
+                                "HasDisease" -> (patient.diseaseCount ?: 0) > 0 || !patient.diseases.isNullOrEmpty()
                                 "Critical" -> patient.diseases?.any { d ->
                                     d.status.trim().equals("Critical", ignoreCase = true) || d.severity.trim().equals("Critical", ignoreCase = true)
                                 } == true
@@ -320,7 +320,7 @@ fun PatientListItem(patient: Patient, onClick: () -> Unit, onDelete: () -> Unit)
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            val diseaseCount = patient.disease_count ?: patient.diseases?.size ?: 0
+            val diseaseCount = patient.diseaseCount ?: patient.diseases?.size ?: 0
             
             Row(
                 modifier = Modifier.fillMaxWidth(),

@@ -15,7 +15,7 @@ val globalPatients = mutableStateListOf<Patient>(
         gender = "Female",
         phone = "+1 555 0101",
         address = "123 Main St, New York, NY 10001",
-        disease_count = 2,
+        diseaseCount = 2,
         diseases = mutableListOf(
             Disease(
                 name = "Type 2 Diabetes",
@@ -42,7 +42,7 @@ val globalPatients = mutableStateListOf<Patient>(
         gender = "Male",
         phone = "+1 555 0102",
         address = "456 Oak Ave, Los Angeles, CA 90001",
-        disease_count = 1,
+        diseaseCount = 1,
         diseases = mutableListOf(
             Disease(
                 name = "Arthritis",
@@ -61,7 +61,7 @@ val globalPatients = mutableStateListOf<Patient>(
         gender = "Female",
         phone = "+1 555 0103",
         address = "789 Pine St, Chicago, IL 60601",
-        disease_count = 0,
+        diseaseCount = 0,
         diseases = mutableListOf()
     )
 )

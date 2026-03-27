@@ -84,7 +84,7 @@ fun UpdateStatusScreen(
                 gender = "Unknown",
                 phone = "",
                 address = "",
-                disease_count = 0
+                diseaseCount = 0
             )
             return@remember Pair(p, d)
         }
