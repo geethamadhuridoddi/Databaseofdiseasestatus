@@ -38,12 +38,14 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
 
     val registrationState by authViewModel.registrationState.collectAsState()
 
     fun validatePassword(pass: String): String? {
         if (pass.length < 8) return "Password must be at least 8 characters long."
         if (!pass.any { it.isUpperCase() }) return "Password must contain at least one uppercase letter."
+        if (!pass.any { it.isLowerCase() }) return "Password must contain at least one lowercase letter."
         if (!pass.any { it.isDigit() }) return "Password must contain at least one number."
         if (!pass.any { !it.isLetterOrDigit() }) return "Password must contain at least one special character."
         return null
@@ -167,6 +169,7 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
                 ),
                 shape = RoundedCornerShape(4.dp)
             )
+            emailError?.let { Text(it, color = Color.Red, fontSize = 11.sp) }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -233,9 +236,14 @@ fun RegistrationScreen(navController: NavController, authViewModel: AuthViewMode
             // Authenticate (Sign Up) Button
             OutlinedButton(
                 onClick = {
+                    emailError = when {
+                        email.isBlank() -> "Email cannot be empty."
+                        !email.lowercase().endsWith("@gmail.com") -> "Please use a valid Gmail address (@gmail.com)"
+                        else -> null
+                    }
                     passwordError = validatePassword(password)
                     confirmPasswordError = if (password != confirmPassword) "Passwords do not match." else null
-                    if (passwordError == null && confirmPasswordError == null) {
+                    if (emailError == null && passwordError == null && confirmPasswordError == null) {
                         val userData = mapOf(
                             "full_name" to fullName,
                             "email" to email,

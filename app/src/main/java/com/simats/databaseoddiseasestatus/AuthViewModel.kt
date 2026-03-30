@@ -48,70 +48,80 @@ class AuthViewModel : ViewModel() {
     fun registerUser(userData: Map<String, Any>) {
         _registrationState.value = RegistrationResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(userData).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.registerUser(body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val registrationResponse = Gson().fromJson(jsonString, RegistrationResponse::class.java)
-                            if (registrationResponse != null) {
-                                _registrationState.value = RegistrationResult.Success(registrationResponse)
-                            } else {
-                                _registrationState.value = RegistrationResult.Error("Empty response from server")
+            try {
+                val body = Gson().toJson(userData).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.registerUser(body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val registrationResponse = Gson().fromJson(jsonString, RegistrationResponse::class.java)
+                                if (registrationResponse != null) {
+                                    _registrationState.value = RegistrationResult.Success(registrationResponse)
+                                } else {
+                                    _registrationState.value = RegistrationResult.Error("Empty response from server")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("AuthViewModel", "Parsing error", e)
+                                _registrationState.value = RegistrationResult.Error("Failed to process registration data")
                             }
-                        } catch (e: Exception) {
-                            Log.e("AuthViewModel", "Parsing error", e)
-                            _registrationState.value = RegistrationResult.Error("Failed to process registration data")
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            Log.e("AuthViewModel", "Error: $errorMsg")
+                            _registrationState.value = RegistrationResult.Error(errorMsg)
                         }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        Log.e("AuthViewModel", "Error: $errorMsg")
-                        _registrationState.value = RegistrationResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("AuthViewModel", "Failure: ${t.message}")
-                    _registrationState.value = RegistrationResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("AuthViewModel", "Failure: ${t.message}")
+                        _registrationState.value = RegistrationResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Registration Launch Error", e)
+                _registrationState.value = RegistrationResult.Error("Could not start registration: ${e.localizedMessage}")
+            }
         }
     }
 
     fun loginUser(credentials: Map<String, String>) {
         _loginState.value = LoginResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(credentials).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.loginUser(body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val loginResponse = Gson().fromJson(jsonString, LoginResponse::class.java)
-                            if (loginResponse != null) {
-                                _loginState.value = LoginResult.Success(loginResponse)
-                            } else {
-                                _loginState.value = LoginResult.Error("Invalid login response")
+            try {
+                val body = Gson().toJson(credentials).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.loginUser(body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val loginResponse = Gson().fromJson(jsonString, LoginResponse::class.java)
+                                if (loginResponse != null) {
+                                    _loginState.value = LoginResult.Success(loginResponse)
+                                } else {
+                                    _loginState.value = LoginResult.Error("Invalid login response")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("AuthViewModel", "Login Parsing error", e)
+                                _loginState.value = LoginResult.Error("Failed to process login data")
                             }
-                        } catch (e: Exception) {
-                            Log.e("AuthViewModel", "Login Parsing error", e)
-                            _loginState.value = LoginResult.Error("Failed to process login data")
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            Log.e("AuthViewModel", "Login API Error: $errorMsg")
+                            _loginState.value = LoginResult.Error(errorMsg)
                         }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        Log.e("AuthViewModel", "Login API Error: $errorMsg")
-                        _loginState.value = LoginResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("AuthViewModel", "Failure: ${t.message}")
-                    _loginState.value = LoginResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("AuthViewModel", "Failure: ${t.message}")
+                        _loginState.value = LoginResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Login Launch Error", e)
+                _loginState.value = LoginResult.Error("Could not start login: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -208,52 +218,60 @@ class AuthViewModel : ViewModel() {
     fun fetchDashboardStats(userId: Int?) {
         _dashboardState.value = DashboardResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.getDashboardStats(userId).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val dashboardResponse = Gson().fromJson(jsonString, DashboardResponse::class.java)
-                            if (dashboardResponse != null) {
-                                // Fallback calculation if specific case counts are 0 but status_summary has data
-                                val finalResponse = if (dashboardResponse.totalCases == 0 && dashboardResponse.statusSummary != null) {
-                                    val active = dashboardResponse.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
-                                    val recovering = dashboardResponse.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
-                                    val critical = dashboardResponse.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
-                                    val total = dashboardResponse.statusSummary.sumOf { it.count }
-                                    
-                                    dashboardResponse.copy(
-                                        totalCases = total,
-                                        activeCases = active,
-                                        recoveringCases = recovering,
-                                        criticalCases = critical
-                                    )
+            try {
+                ApiClient.instance.getDashboardStats(userId).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val dashboardResponse = Gson().fromJson(jsonString, DashboardResponse::class.java)
+                                if (dashboardResponse != null) {
+                                    // Fallback calculation if specific case counts are 0 but status_summary has data
+                                    val finalResponse = if (dashboardResponse.totalCases == 0 && dashboardResponse.statusSummary != null) {
+                                        val active = dashboardResponse.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
+                                        val recovering = dashboardResponse.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
+                                        val critical = dashboardResponse.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
+                                        val total = dashboardResponse.statusSummary.sumOf { it.count }
+                                        
+                                        dashboardResponse.copy(
+                                            totalCases = total,
+                                            activeCases = active,
+                                            recoveringCases = recovering,
+                                            criticalCases = critical
+                                        )
+                                    } else {
+                                        dashboardResponse
+                                    }
+                                    _dashboardState.value = DashboardResult.Success(finalResponse)
                                 } else {
-                                    dashboardResponse
+                                    _dashboardState.value = DashboardResult.Success(defaultDashboard())
                                 }
-                                _dashboardState.value = DashboardResult.Success(finalResponse)
-                            } else {
-                                _dashboardState.value = DashboardResult.Error("Critical dashboard data missing")
+                            } catch (e: Exception) {
+                                Log.e("AuthViewModel", "Dashboard Parsing error", e)
+                                _dashboardState.value = DashboardResult.Success(defaultDashboard())
                             }
-                        } catch (e: Exception) {
-                            Log.e("AuthViewModel", "Dashboard Parsing error", e)
-                            _dashboardState.value = DashboardResult.Error("Failed to process overview data")
+                        } else {
+                            Log.e("AuthViewModel", "Dashboard API Error: ${response.code()}")
+                            _dashboardState.value = DashboardResult.Success(defaultDashboard())
                         }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        Log.e("AuthViewModel", "Dashboard API Error: $errorMsg")
-                        _dashboardState.value = DashboardResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("AuthViewModel", "Failure: ${t.message}")
-                    _dashboardState.value = DashboardResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("AuthViewModel", "Network error loading dashboard", t)
+                        _dashboardState.value = DashboardResult.Success(defaultDashboard())
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Dashboard Launch Error", e)
+                _dashboardState.value = DashboardResult.Success(defaultDashboard())
+            }
         }
     }
+
+    private fun defaultDashboard() = DashboardResponse(
+        totalPatients = 0, totalDiseases = 0, totalCases = 0,
+        activeCases = 0, recoveringCases = 0, criticalCases = 0
+    )
 
     fun resetRegistrationState() {
         _registrationState.value = RegistrationResult.Idle

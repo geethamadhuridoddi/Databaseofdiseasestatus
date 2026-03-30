@@ -1,5 +1,6 @@
 package com.simats.databaseoddiseasestatus
 
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -41,128 +42,149 @@ class ReportViewModel : ViewModel() {
 
     fun fetchReportSummary(userId: Int? = null) {
         _isLoading.value = true
-        apiService.getReportSummary(userId).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                _isLoading.value = false
-                if (response.isSuccessful && response.body() != null) {
-                    try {
-                        val jsonString = response.body()!!.string()
-                        _summary.value = Gson().fromJson(jsonString, ReportSummaryResponse::class.java)
-                    } catch (e: Exception) {
-                        _error.value = "Failed to parse summary"
+        try {
+            apiService.getReportSummary(userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    _isLoading.value = false
+                    if (response.isSuccessful && response.body() != null) {
+                        try {
+                            val jsonString = response.body()!!.string()
+                            _summary.value = Gson().fromJson(jsonString, ReportSummaryResponse::class.java)
+                        } catch (e: Exception) {
+                            Log.e("ReportViewModel", "Failed to parse summary", e)
+                        }
+                    } else {
+                        Log.e("ReportViewModel", "Server error fetching summary: ${response.code()}")
                     }
-                } else {
-                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch summary"
-                    _error.value = if (errorBody.contains("<!DOCTYPE html>")) "Server error fetching summary." else errorBody
                 }
-            }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                _isLoading.value = false
-                _error.value = "Error: ${t.message}"
-            }
-        })
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _isLoading.value = false
+                    Log.e("ReportViewModel", "Network error fetching summary", t)
+                }
+            })
+        } catch (e: Exception) {
+            _isLoading.value = false
+            Log.e("ReportViewModel", "Launch error fetching summary", e)
+        }
     }
 
     fun fetchDashboardStats(userId: Int? = null) {
-        apiService.getDashboardStats(userId).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                if (response.isSuccessful && response.body() != null) {
-                    try {
-                        val jsonString = response.body()!!.string()
-                        val stats = Gson().fromJson(jsonString, DashboardResponse::class.java)
-                        
-                        // Fallback calculation if specific case counts are 0 but status_summary has data
-                        val finalStats = if (stats?.totalCases == 0 && stats.statusSummary != null) {
-                            val active = stats.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
-                            val recovering = stats.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
-                            val critical = stats.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
-                            val total = stats.statusSummary.sumOf { it.count }
+        try {
+            apiService.getDashboardStats(userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    if (response.isSuccessful && response.body() != null) {
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val stats = Gson().fromJson(jsonString, DashboardResponse::class.java)
                             
-                            stats.copy(
-                                totalCases = total,
-                                activeCases = active,
-                                recoveringCases = recovering,
-                                criticalCases = critical
-                            )
-                        } else {
-                            stats
-                        }
-                        
-                        _dashboardStats.value = finalStats
-                        _totalPatients.value = finalStats?.totalCases ?: 0
-                    } catch (e: Exception) {}
+                            // Fallback calculation if specific case counts are 0 but status_summary has data
+                            val finalStats = if (stats?.totalCases == 0 && stats.statusSummary != null) {
+                                val active = stats.statusSummary.find { it.status.equals("Active", true) }?.count ?: 0
+                                val recovering = stats.statusSummary.find { it.status.equals("Recovering", true) }?.count ?: 0
+                                val critical = stats.statusSummary.find { it.status.equals("Critical", true) }?.count ?: 0
+                                val total = stats.statusSummary.sumOf { it.count }
+                                
+                                stats.copy(
+                                    totalCases = total,
+                                    activeCases = active,
+                                    recoveringCases = recovering,
+                                    criticalCases = critical
+                                )
+                            } else {
+                                stats
+                            }
+                            
+                            _dashboardStats.value = finalStats
+                            _totalPatients.value = finalStats?.totalCases ?: 0
+                        } catch (e: Exception) {}
+                    }
                 }
-            }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
-        })
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
+            })
+        } catch (e: Exception) {
+            Log.e("ReportViewModel", "Launch error fetching stats", e)
+        }
     }
 
     fun fetchPatientReport(userId: Int? = null) {
         _isLoading.value = true
-        apiService.getPatientReport(userId).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                _isLoading.value = false
-                if (response.isSuccessful && response.body() != null) {
-                    try {
-                        val jsonString = response.body()!!.string()
-                        val type = object : TypeToken<List<PatientReportItem>>() {}.type
-                        _patientReport.value = Gson().fromJson(jsonString, type)
-                    } catch (e: Exception) {
-                        _error.value = "Failed to parse patient report"
+        try {
+            apiService.getPatientReport(userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    _isLoading.value = false
+                    if (response.isSuccessful && response.body() != null) {
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val type = object : TypeToken<List<PatientReportItem>>() {}.type
+                            _patientReport.value = Gson().fromJson(jsonString, type)
+                        } catch (e: Exception) {
+                            Log.e("ReportViewModel", "Failed to parse patient report", e)
+                        }
+                    } else {
+                        Log.e("ReportViewModel", "Server error fetching patient report: ${response.code()}")
                     }
-                } else {
-                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch patient report"
-                    _error.value = if (errorBody.contains("<!DOCTYPE html>")) "Server error fetching report." else errorBody
                 }
-            }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                _isLoading.value = false
-                _error.value = "Error: ${t.message}"
-            }
-        })
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _isLoading.value = false
+                    Log.e("ReportViewModel", "Network error fetching patient report", t)
+                }
+            })
+        } catch (e: Exception) {
+            _isLoading.value = false
+            Log.e("ReportViewModel", "Launch error fetching patient report", e)
+        }
     }
 
     fun fetchDiseaseAnalytics(userId: Int? = null) {
         _isLoading.value = true
-        apiService.getDiseaseAnalytics(userId).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                _isLoading.value = false
-                if (response.isSuccessful && response.body() != null) {
-                    try {
-                        val jsonString = response.body()!!.string()
-                        _analytics.value = Gson().fromJson(jsonString, DiseaseAnalyticsResponse::class.java)
-                    } catch (e: Exception) {
-                        _error.value = "Failed to parse analytics"
+        try {
+            apiService.getDiseaseAnalytics(userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    _isLoading.value = false
+                    if (response.isSuccessful && response.body() != null) {
+                        try {
+                            val jsonString = response.body()!!.string()
+                            _analytics.value = Gson().fromJson(jsonString, DiseaseAnalyticsResponse::class.java)
+                        } catch (e: Exception) {
+                            Log.e("ReportViewModel", "Failed to parse analytics", e)
+                        }
+                    } else {
+                        Log.e("ReportViewModel", "Server error fetching analytics: ${response.code()}")
                     }
-                } else {
-                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch analytics"
-                    _error.value = if (errorBody.contains("<!DOCTYPE html>")) "Server error fetching analytics." else errorBody
                 }
-            }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                _isLoading.value = false
-                _error.value = "Error: ${t.message}"
-            }
-        })
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _isLoading.value = false
+                    Log.e("ReportViewModel", "Network error fetching analytics", t)
+                }
+            })
+        } catch (e: Exception) {
+            _isLoading.value = false
+            Log.e("ReportViewModel", "Launch error fetching analytics", e)
+        }
     }
 
     fun downloadReport(format: String, userId: Int? = null, onComplete: (Boolean) -> Unit) {
-        apiService.downloadReport(format, userId).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                if (response.isSuccessful) {
-                    onComplete(true)
-                } else {
+        try {
+            apiService.downloadReport(format, userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    if (response.isSuccessful) {
+                        onComplete(true)
+                    } else {
+                        onComplete(false)
+                    }
+                }
+
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                     onComplete(false)
                 }
-            }
-
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                onComplete(false)
-            }
-        })
+            })
+        } catch (e: Exception) {
+            Log.e("ReportViewModel", "Launch error downloading report", e)
+            onComplete(false)
+        }
     }
 }

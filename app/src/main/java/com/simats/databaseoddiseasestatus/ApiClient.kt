@@ -12,19 +12,22 @@ object ApiClient {
      * - Use your machine's local IP (e.g., "http://192.168.x.x:8000/api/") for Real Devices.
      * - Ensure your Django server is running with: python manage.py runserver 0.0.0.0:8000
      */
-    const val BASE_URL = "http://10.52.221.72:8000/api/"
+    
+    // Replace 10.52.221.72 with your current computer's IP (found via 'ipconfig')
+    // and 8135 with your server's port (e.g., 8000)
+    const val BASE_URL = "http://10.52.221.72:8135/api/"
 
     val instance: ApiService by lazy {
-        // Adding a custom OkHttpClient with timeouts for better reliability
         val okHttpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .build()
 
         val gson = GsonBuilder()
-            .setLenient() // Helps with slightly malformed JSON
-            .setDateFormat("yyyy-MM-dd") // Matches the Django date format
+            .setLenient()
+            .setDateFormat("yyyy-MM-dd")
             .create()
 
         val retrofit = Retrofit.Builder()

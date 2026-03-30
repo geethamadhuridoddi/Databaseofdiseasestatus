@@ -31,6 +31,16 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+
+    fun validatePassword(password: String): String? {
+        if (password.length < 8) return "Password must be at least 8 characters long."
+        if (!password.any { it.isUpperCase() }) return "Password must contain at least one uppercase letter."
+        if (!password.any { it.isLowerCase() }) return "Password must contain at least one lowercase letter."
+        if (!password.any { !it.isLetterOrDigit() }) return "Password must contain at least one special character."
+        return null
+    }
 
     val loginState by authViewModel.loginState.collectAsState()
 
@@ -113,7 +123,7 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
                     Text(
                         text = state.message,
                         color = Color.Red,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -121,6 +131,25 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
                     CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.padding(bottom = 16.dp))
                 }
                 else -> {}
+            }
+
+            emailError?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+            passwordError?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    textAlign = TextAlign.Center
+                )
             }
 
             // Input Fields
@@ -177,7 +206,13 @@ fun LoginScreen(navController: NavController, authViewModel: AuthViewModel = vie
             // Authenticate Button
             OutlinedButton(
                 onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
+                    emailError = when {
+                        email.isBlank() -> "Email cannot be empty."
+                        !email.lowercase().endsWith("@gmail.com") -> "Please use a valid Gmail address (@gmail.com)"
+                        else -> null
+                    }
+                    passwordError = validatePassword(password)
+                    if (emailError == null && passwordError == null) {
                         authViewModel.loginUser(mapOf("email" to email, "password" to password))
                     }
                 },

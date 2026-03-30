@@ -24,57 +24,69 @@ class NotificationViewModel : ViewModel() {
     fun fetchNotifications() {
         _notificationsState.value = NotificationsResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.getNotifications().enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val type = object : TypeToken<List<Notification>>() {}.type
-                            val serverNotifications: List<Notification> = Gson().fromJson(jsonString, type)
-                            
-                            serverNotifications.forEach { sn ->
-                                if (globalNotifications.none { it.id == sn.id }) {
-                                    globalNotifications.add(sn)
+            try {
+                ApiClient.instance.getNotifications().enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val type = object : TypeToken<List<Notification>>() {}.type
+                                val serverNotifications: List<Notification> = Gson().fromJson(jsonString, type)
+                                
+                                serverNotifications.forEach { sn ->
+                                    if (globalNotifications.none { it.id == sn.id }) {
+                                        globalNotifications.add(sn)
+                                    }
                                 }
+                                _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+                            } catch (e: Exception) {
+                                Log.e("NotificationViewModel", "Parsing error", e)
+                                // Fallback to local notifications
+                                _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
                             }
+                        } else {
+                            // Fallback to local notifications on server error
                             _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
-                        } catch (e: Exception) {
-                            Log.e("NotificationViewModel", "Parsing error", e)
-                            _notificationsState.value = NotificationsResult.Error("Failed to parse notifications")
                         }
-                    } else {
-                        val errorMsg = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch notifications."
-                        _notificationsState.value = NotificationsResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    _notificationsState.value = NotificationsResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("NotificationViewModel", "Network error, showing local notifications", t)
+                        // Fallback to local notifications on network error
+                        _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "Fetch notifications launch error", e)
+                _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+            }
         }
     }
 
     fun fetchUnreadCount() {
         viewModelScope.launch {
-            ApiClient.instance.getUnreadCount().enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val type = object : TypeToken<Map<String, Int>>() {}.type
-                            val result: Map<String, Int> = Gson().fromJson(jsonString, type)
-                            _unreadCount.value = result["unread_count"] ?: 0
-                        } catch (e: Exception) {
-                            Log.e("NotificationViewModel", "Parsing error", e)
+            try {
+                ApiClient.instance.getUnreadCount().enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val type = object : TypeToken<Map<String, Int>>() {}.type
+                                val result: Map<String, Int> = Gson().fromJson(jsonString, type)
+                                _unreadCount.value = result["unread_count"] ?: 0
+                            } catch (e: Exception) {
+                                Log.e("NotificationViewModel", "Parsing error", e)
+                            }
                         }
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("NotificationViewModel", "Failed to fetch unread count: ${t.message}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("NotificationViewModel", "Failed to fetch unread count: ${t.message}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "Unread count launch error", e)
+            }
         }
     }
 
@@ -87,20 +99,24 @@ class NotificationViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            ApiClient.instance.markAsRead(notificationId).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful) {
-                        fetchUnreadCount()
-                        // Erase from screen after marking as read on server
-                        globalNotifications.removeAll { it.id == notificationId }
-                        _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+            try {
+                ApiClient.instance.markAsRead(notificationId).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful) {
+                            fetchUnreadCount()
+                            // Erase from screen after marking as read on server
+                            globalNotifications.removeAll { it.id == notificationId }
+                            _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+                        }
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("NotificationViewModel", "Failed to mark as read: ${t.message}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("NotificationViewModel", "Failed to mark as read: ${t.message}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "Mark as read launch error", e)
+            }
         }
     }
 
@@ -112,19 +128,23 @@ class NotificationViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            ApiClient.instance.deleteNotification(notificationId).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful) {
-                        globalNotifications.removeAll { it.id == notificationId }
-                        _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
-                        fetchUnreadCount()
+            try {
+                ApiClient.instance.deleteNotification(notificationId).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful) {
+                            globalNotifications.removeAll { it.id == notificationId }
+                            _notificationsState.value = NotificationsResult.Success(globalNotifications.toList())
+                            fetchUnreadCount()
+                        }
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("NotificationViewModel", "Failed to delete notification: ${t.message}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("NotificationViewModel", "Failed to delete notification: ${t.message}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "Delete notification launch error", e)
+            }
         }
     }
 }

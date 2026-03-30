@@ -93,10 +93,8 @@ class PatientViewModel : ViewModel() {
                                     _patientsState.value = PatientsResult.Error("No patient data found")
                                 }
                             } else {
-                                val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                                val errorMsg = handleApiError(errorBody)
-                                Log.e("PatientViewModel", "Error fetching patients: $errorMsg")
-                                _patientsState.value = PatientsResult.Error(errorMsg)
+                                Log.e("PatientViewModel", "Server error fetching patients: ${response.code()}")
+                                _patientsState.value = PatientsResult.Success(emptyList())
                             }
                         } catch (e: Exception) {
                             Log.e("PatientViewModel", "Error parsing patients list", e)
@@ -105,13 +103,13 @@ class PatientViewModel : ViewModel() {
                     }
 
                     override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                        Log.e("PatientViewModel", "Failure: ${t.message}")
-                        _patientsState.value = PatientsResult.Error("Network error: ${t.localizedMessage}")
+                        Log.e("PatientViewModel", "Network error fetching patients", t)
+                        _patientsState.value = PatientsResult.Success(emptyList())
                     }
                 })
             } catch (e: Exception) {
                 Log.e("PatientViewModel", "Error launching API call", e)
-                _patientsState.value = PatientsResult.Error("Request error: ${e.localizedMessage}")
+                _patientsState.value = PatientsResult.Success(emptyList())
             }
         }
     }
@@ -119,122 +117,142 @@ class PatientViewModel : ViewModel() {
     fun addPatient(patientData: Map<String, Any>) {
         _addPatientState.value = AddPatientResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(patientData).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.addPatient(body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val result = Gson().fromJson(jsonString, RegistrationResponse::class.java)
-                            if (result != null) {
-                                _addPatientState.value = AddPatientResult.Success(result)
-                                val patientName = patientData["name"]?.toString() ?: "New Patient"
-                                addLocalNotification("New patient added: $patientName")
-                                val userId = patientData["user_id"]?.toString()?.toIntOrNull()
-                                fetchPatients(userId = userId)
-                            } else {
-                                _addPatientState.value = AddPatientResult.Error("Server returned empty confirmation")
+            try {
+                val body = Gson().toJson(patientData).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.addPatient(body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val result = Gson().fromJson(jsonString, RegistrationResponse::class.java)
+                                if (result != null) {
+                                    _addPatientState.value = AddPatientResult.Success(result)
+                                    val patientName = patientData["name"]?.toString() ?: "New Patient"
+                                    addLocalNotification("New patient added: $patientName")
+                                    val userId = patientData["user_id"]?.toString()?.toIntOrNull()
+                                    fetchPatients(userId = userId)
+                                } else {
+                                    _addPatientState.value = AddPatientResult.Error("Server returned empty confirmation")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("PatientViewModel", "Add Patient Parsing Error", e)
+                                _addPatientState.value = AddPatientResult.Error("Failed to process server confirmation")
                             }
-                        } catch (e: Exception) {
-                            Log.e("PatientViewModel", "Add Patient Parsing Error", e)
-                            _addPatientState.value = AddPatientResult.Error("Failed to process server confirmation")
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            _addPatientState.value = AddPatientResult.Error(errorMsg)
                         }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        _addPatientState.value = AddPatientResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    _addPatientState.value = AddPatientResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        _addPatientState.value = AddPatientResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("PatientViewModel", "Add Patient Launch Error", e)
+                _addPatientState.value = AddPatientResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 
     fun updatePatient(patientId: String, patientData: Map<String, Any>, userId: Int? = null) {
         _updatePatientState.value = UpdatePatientResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(patientData).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.updatePatient(patientId, body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful) {
-                        _updatePatientState.value = UpdatePatientResult.Success
-                        val patientName = patientData["name"]?.toString() ?: "Patient"
-                        addLocalNotification("Patient profile updated: $patientName")
-                        fetchPatients()
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        Log.e("PatientViewModel", "Update Error: $errorMsg")
-                        _updatePatientState.value = UpdatePatientResult.Error(errorMsg)
+            try {
+                val body = Gson().toJson(patientData).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.updatePatient(patientId, body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful) {
+                            _updatePatientState.value = UpdatePatientResult.Success
+                            val patientName = patientData["name"]?.toString() ?: "Patient"
+                            addLocalNotification("Patient profile updated: $patientName")
+                            fetchPatients(userId = userId)
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            Log.e("PatientViewModel", "Update Error: $errorMsg")
+                            _updatePatientState.value = UpdatePatientResult.Error(errorMsg)
+                        }
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    _updatePatientState.value = UpdatePatientResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        _updatePatientState.value = UpdatePatientResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("PatientViewModel", "Update Patient Launch Error", e)
+                _updatePatientState.value = UpdatePatientResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 
     fun deletePatient(patientId: String, userId: Int? = null) {
         _deletePatientState.value = DeletePatientResult.Loading
         viewModelScope.launch {
-            val patientName = globalPatients.find { it.id.toString() == patientId }?.name ?: "Patient"
-            
-            ApiClient.instance.deletePatient(patientId, userId).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful) {
-                        _deletePatientState.value = DeletePatientResult.Success
-                        addLocalNotification("Patient deleted: $patientName")
-                        globalPatients.removeAll { it.id.toString() == patientId }
-                        fetchPatients(userId = userId)
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        _deletePatientState.value = DeletePatientResult.Error(errorMsg)
+            try {
+                val patientName = globalPatients.find { it.id.toString() == patientId }?.name ?: "Patient"
+                
+                ApiClient.instance.deletePatient(patientId, userId).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful) {
+                            _deletePatientState.value = DeletePatientResult.Success
+                            addLocalNotification("Patient deleted: $patientName")
+                            globalPatients.removeAll { it.id.toString() == patientId }
+                            fetchPatients(userId = userId)
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            _deletePatientState.value = DeletePatientResult.Error(errorMsg)
+                        }
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    _deletePatientState.value = DeletePatientResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        _deletePatientState.value = DeletePatientResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("PatientViewModel", "Delete Patient Launch Error", e)
+                _deletePatientState.value = DeletePatientResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 
     fun fetchHistory(patientId: String, userId: Int? = null) {
         _historyState.value = HistoryResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.getPatientHistory(patientId, userId).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val type = object : TypeToken<List<Disease>>() {}.type
-                            val history: List<Disease> = Gson().fromJson(jsonString, type)
-                            if (history != null) {
-                                _historyState.value = HistoryResult.Success(history)
-                            } else {
-                                _historyState.value = HistoryResult.Error("No history found")
+            try {
+                ApiClient.instance.getPatientHistory(patientId, userId).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val type = object : TypeToken<List<Disease>>() {}.type
+                                val history: List<Disease> = Gson().fromJson(jsonString, type)
+                                if (history != null) {
+                                    _historyState.value = HistoryResult.Success(history)
+                                } else {
+                                    _historyState.value = HistoryResult.Error("No history found")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("PatientViewModel", "History parsing error", e)
+                                _historyState.value = HistoryResult.Error("Failed to parse patient history")
                             }
-                        } catch (e: Exception) {
-                            Log.e("PatientViewModel", "History parsing error", e)
-                            _historyState.value = HistoryResult.Error("Failed to parse patient history")
+                        } else {
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                            val errorMsg = handleApiError(errorBody)
+                            _historyState.value = HistoryResult.Error(errorMsg)
                         }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        val errorMsg = handleApiError(errorBody)
-                        _historyState.value = HistoryResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    _historyState.value = HistoryResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        _historyState.value = HistoryResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("PatientViewModel", "History launch error", e)
+                _historyState.value = HistoryResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 

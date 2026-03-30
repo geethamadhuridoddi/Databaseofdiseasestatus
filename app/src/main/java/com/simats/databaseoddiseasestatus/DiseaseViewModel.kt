@@ -61,20 +61,17 @@ class DiseaseViewModel : ViewModel() {
                             _diseasesState.value = DiseasesResult.Success(diseases)
                         } catch (e: Exception) {
                             Log.e("DiseaseViewModel", "Parsing error in fetchDiseases", e)
-                            _diseasesState.value = DiseasesResult.Error("Data processing error")
+                            _diseasesState.value = DiseasesResult.Error("Data processing error: ${e.localizedMessage}")
                         }
                     } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
-                        val errorMsg = if (errorBody.contains("<!DOCTYPE html>") || errorBody.contains("<html>")) {
-                            "Server error. Please try again later."
-                        } else {
-                            errorBody.takeIf { it.isNotBlank() } ?: "Failed to fetch diseases."
-                        }
-                        _diseasesState.value = DiseasesResult.Error(errorMsg)
+                        val errorDetail = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Server error ${response.code()}"
+                        Log.e("DiseaseViewModel", "Server error fetching diseases: $errorDetail")
+                        _diseasesState.value = DiseasesResult.Error(errorDetail)
                     }
                 }
 
                 override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    Log.e("DiseaseViewModel", "Network error fetching diseases", t)
                     _diseasesState.value = DiseasesResult.Error("Network error: ${t.localizedMessage}")
                 }
             })
@@ -84,41 +81,46 @@ class DiseaseViewModel : ViewModel() {
     fun assignDisease(diseaseData: Map<String, Any>) {
         _addDiseaseState.value = AddDiseaseResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(diseaseData).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.assignDisease(body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        try {
-                            val jsonString = response.body()!!.string()
-                            val body = Gson().fromJson(jsonString, AssignDiseaseResponse::class.java)
-                            if (body?.error != null) {
-                                _addDiseaseState.value = AddDiseaseResult.Error(body.error)
-                            } else {
-                                _addDiseaseState.value = AddDiseaseResult.Success
-                                val diseaseName = diseaseData["disease_name"]?.toString() ?: "Disease"
-                                addLocalNotification("New disease record assigned: $diseaseName")
+            try {
+                val body = Gson().toJson(diseaseData).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.assignDisease(body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val body = Gson().fromJson(jsonString, AssignDiseaseResponse::class.java)
+                                if (body?.error != null) {
+                                    _addDiseaseState.value = AddDiseaseResult.Error(body.error)
+                                } else {
+                                    _addDiseaseState.value = AddDiseaseResult.Success
+                                    val diseaseName = diseaseData["disease_name"]?.toString() ?: "Disease"
+                                    addLocalNotification("New disease record assigned: $diseaseName")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("DiseaseViewModel", "Parsing error in assignDisease", e)
+                                _addDiseaseState.value = AddDiseaseResult.Error("Response parsing error")
                             }
-                        } catch (e: Exception) {
-                            Log.e("DiseaseViewModel", "Parsing error in assignDisease", e)
-                            _addDiseaseState.value = AddDiseaseResult.Error("Response parsing error")
-                        }
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
-                        val errorMsg = if (errorBody.contains("<!DOCTYPE html>") || errorBody.contains("<html>")) {
-                            "Server error: ${response.code()}. The endpoint might be incorrect or the server is down."
                         } else {
-                            errorBody.takeIf { it.isNotBlank() } ?: "Failed to assign disease (Status: ${response.code()})"
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
+                            val errorMsg = if (errorBody.contains("<!DOCTYPE html>") || errorBody.contains("<html>")) {
+                                "Server error: ${response.code()}. The endpoint might be incorrect or the server is down."
+                            } else {
+                                errorBody.takeIf { it.isNotBlank() } ?: "Failed to assign disease (Status: ${response.code()})"
+                            }
+                            Log.e("DiseaseViewModel", "Assign error: $errorMsg")
+                            _addDiseaseState.value = AddDiseaseResult.Error(errorMsg)
                         }
-                        Log.e("DiseaseViewModel", "Assign error: $errorMsg")
-                        _addDiseaseState.value = AddDiseaseResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("DiseaseViewModel", "Network Failure", t)
-                    _addDiseaseState.value = AddDiseaseResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("DiseaseViewModel", "Network Failure", t)
+                        _addDiseaseState.value = AddDiseaseResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("DiseaseViewModel", "Launch error in assignDisease", e)
+                _addDiseaseState.value = AddDiseaseResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -204,32 +206,37 @@ class DiseaseViewModel : ViewModel() {
     fun updatePatientDiseaseStatus(recordId: Int, updateData: Map<String, Any>) {
         _updateDiseaseState.value = UpdateDiseaseResult.Loading
         viewModelScope.launch {
-            val body = Gson().toJson(updateData).toRequestBody("application/json".toMediaTypeOrNull())
-            ApiClient.instance.updatePatientDiseaseStatus(recordId, body).enqueue(object : Callback<ResponseBody> {
-                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                    Log.i("API_DEBUG", "SERVER RESPONSE: ${response.code()}")
-                    if (response.isSuccessful) {
-                        _updateDiseaseState.value = UpdateDiseaseResult.Success
-                        val status = updateData["status"] ?: "Updated"
-                        addLocalNotification("Patient disease status updated to: $status")
-                    } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
-                        Log.e("API_DEBUG", "ERROR BODY: $errorBody")
-                        val lowercaseError = errorBody.lowercase()
-                        val errorMsg = if (lowercaseError.contains("<!doctype html>") || lowercaseError.contains("<html>") || lowercaseError.contains("<html")) {
-                            "Server error (Database or Path issue). Please check your backend connection."
+            try {
+                val body = Gson().toJson(updateData).toRequestBody("application/json".toMediaTypeOrNull())
+                ApiClient.instance.updatePatientDiseaseStatus(recordId, body).enqueue(object : Callback<ResponseBody> {
+                    override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                        Log.i("API_DEBUG", "SERVER RESPONSE: ${response.code()}")
+                        if (response.isSuccessful) {
+                            _updateDiseaseState.value = UpdateDiseaseResult.Success
+                            val status = updateData["status"] ?: "Updated"
+                            addLocalNotification("Patient disease status updated to: $status")
                         } else {
-                            errorBody.takeIf { it.isNotBlank() } ?: "Failed to update status."
+                            val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
+                            Log.e("API_DEBUG", "ERROR BODY: $errorBody")
+                            val lowercaseError = errorBody.lowercase()
+                            val errorMsg = if (lowercaseError.contains("<!doctype html>") || lowercaseError.contains("<html>") || lowercaseError.contains("<html")) {
+                                "Server error (Database or Path issue). Please check your backend connection."
+                            } else {
+                                errorBody.takeIf { it.isNotBlank() } ?: "Failed to update status."
+                            }
+                            _updateDiseaseState.value = UpdateDiseaseResult.Error(errorMsg)
                         }
-                        _updateDiseaseState.value = UpdateDiseaseResult.Error(errorMsg)
                     }
-                }
 
-                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                    Log.e("API_DEBUG", "NETWORK FAILURE", t)
-                    _updateDiseaseState.value = UpdateDiseaseResult.Error("Network error: ${t.localizedMessage}")
-                }
-            })
+                    override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                        Log.e("API_DEBUG", "NETWORK FAILURE", t)
+                        _updateDiseaseState.value = UpdateDiseaseResult.Error("Network error: ${t.localizedMessage}")
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("DiseaseViewModel", "Launch error in updateStatus", e)
+                _updateDiseaseState.value = UpdateDiseaseResult.Error("Launch error: ${e.localizedMessage}")
+            }
         }
     }
 

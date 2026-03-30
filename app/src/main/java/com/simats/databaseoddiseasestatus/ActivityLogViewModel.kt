@@ -26,32 +26,37 @@ class ActivityLogViewModel : ViewModel() {
     fun fetchActivityLog() {
         _isLoading.value = true
         _error.value = null
-        apiService.getActivityLog().enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                _isLoading.value = false
-                if (response.isSuccessful && response.body() != null) {
-                    try {
-                        val jsonString = response.body()!!.string()
-                        val type = object : TypeToken<List<ActivityLogItem>>() {}.type
-                        val logList: List<ActivityLogItem> = Gson().fromJson(jsonString, type)
-                        Log.d("ActivityLogVM", "Fetched ${logList.size} logs")
-                        _logs.value = logList
-                    } catch (e: Exception) {
-                        Log.e("ActivityLogVM", "Parsing error", e)
-                        _error.value = "Failed to parse activity logs"
+        try {
+            apiService.getActivityLog().enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    _isLoading.value = false
+                    if (response.isSuccessful && response.body() != null) {
+                        try {
+                            val jsonString = response.body()!!.string()
+                            val type = object : TypeToken<List<ActivityLogItem>>() {}.type
+                            val logList: List<ActivityLogItem> = Gson().fromJson(jsonString, type)
+                            Log.d("ActivityLogVM", "Fetched ${logList.size} logs")
+                            _logs.value = logList
+                        } catch (e: Exception) {
+                            Log.e("ActivityLogVM", "Parsing error", e)
+                            _error.value = "Failed to parse activity logs"
+                        }
+                    } else {
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch activity logs"
+                        Log.e("ActivityLogVM", "Error response: $errorBody")
+                        _error.value = "Server error: $errorBody"
                     }
-                } else {
-                    val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: "Failed to fetch activity logs"
-                    Log.e("ActivityLogVM", "Error response: $errorBody")
-                    _error.value = "Server error: $errorBody"
                 }
-            }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                _isLoading.value = false
-                Log.e("ActivityLogVM", "Network failure", t)
-                _error.value = "Connection error: ${t.localizedMessage}"
-            }
-        })
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _isLoading.value = false
+                    Log.e("ActivityLogVM", "Network failure", t)
+                }
+            })
+        } catch (e: Exception) {
+            _isLoading.value = false
+            Log.e("ActivityLogVM", "Launch error fetching logs", e)
+            _error.value = "Launch error: ${e.localizedMessage}"
+        }
     }
 }

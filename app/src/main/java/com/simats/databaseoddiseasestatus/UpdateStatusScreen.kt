@@ -153,6 +153,9 @@ fun UpdateStatusScreen(
             Toast.makeText(context, "Status updated successfully!", Toast.LENGTH_SHORT).show()
             navController.popBackStack()
             viewModel.resetUpdateDiseaseState()
+        } else if (updateState is UpdateDiseaseResult.Error) {
+            Toast.makeText(context, (updateState as UpdateDiseaseResult.Error).message, Toast.LENGTH_LONG).show()
+            viewModel.resetUpdateDiseaseState()
         }
     }
 
@@ -219,7 +222,10 @@ fun UpdateStatusScreen(
             } else {
                 Button(
                     onClick = {
+                        android.util.Log.d("UpdateStatusScreen", "Save Update Button Clicked!")
                         val finalRid = foundDisease.recordId ?: rid
+                        android.util.Log.d("UpdateStatusScreen", "Final RID: $finalRid (Disease RID: ${foundDisease.recordId}, Query RID: $rid)")
+                        
                         if (finalRid != null && finalRid != -1) {
                             val updateData = mutableMapOf<String, Any>(
                                 "status" to status, 
@@ -230,7 +236,11 @@ fun UpdateStatusScreen(
                             if (userId != -1) {
                                 updateData["user_id"] = userId
                             }
+                            android.util.Log.d("UpdateStatusScreen", "Calling updatePatientDiseaseStatus with: $updateData")
                             viewModel.updatePatientDiseaseStatus(finalRid, updateData)
+                        } else {
+                            android.util.Log.e("UpdateStatusScreen", "Cannot update: recordId is null OR -1 (rid=$rid, disease.recordId=${foundDisease.recordId})")
+                            Toast.makeText(context, "Cannot update: Record ID is missing. Please try reloading the patient.", Toast.LENGTH_LONG).show()
                         }
                     },
                     modifier = Modifier

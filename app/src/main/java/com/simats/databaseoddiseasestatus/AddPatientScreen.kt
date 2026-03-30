@@ -308,15 +308,18 @@ fun AddPatientScreen(
                             return@Button
                         }
 
-                        val patientData = mapOf(
+                        val patientData = mutableMapOf<String, Any>(
                             "name" to name,
                             "age" to age,
                             "gender" to gender,
                             "phone_number" to phone,
-                            "address" to address,
-                            "user_id" to if (userId != -1) userId else ""
+                            "address" to address
                         )
+                        if (userId != -1) {
+                            patientData["user_id"] = userId
+                        }
 
+                        android.util.Log.d("AddPatientScreen", "Sending patient data: $patientData")
                         viewModel.addPatient(patientData)
                     },
                     modifier = Modifier.fillMaxWidth(),

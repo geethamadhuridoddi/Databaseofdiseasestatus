@@ -41,6 +41,7 @@ data class CaseRecord(
             diseaseCount = 1,
             diseases = listOf(
                 Disease(
+                    recordId = recordId,
                     name = diseaseName ?: "Unknown",
                     status = status ?: "Active",
                     severity = severity ?: "Medium",
