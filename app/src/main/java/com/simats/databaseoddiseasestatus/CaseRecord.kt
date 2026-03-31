@@ -23,7 +23,7 @@ data class CaseRecord(
     val status: String? = null,
     @SerializedName("severity")
     val severity: String? = null,
-    @SerializedName("assigned_doctor")
+    @SerializedName("assigned_doctor", alternate = ["doctor", "doctor_name", "primary_doctor", "staff_name", "doctor_display_name"])
     val doctor: String? = null,
     @SerializedName("notes")
     val notes: String? = null,

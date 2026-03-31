@@ -15,13 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import com.simats.databaseoddiseasestatus.ui.theme.DatabaseOdDiseaseStatusTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +92,8 @@ fun DiseaseDetailsScreen(
                 diseaseId = disease.localId,
                 recordId = disease.recordId,
                 userId = userId,
-                isLoadingExtra = false
+                isLoadingExtra = false,
+                viewModel = viewModel
             )
         } else {
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
@@ -131,14 +129,13 @@ fun DiseaseDetailsByRecordScreen(
     val catalogItem = selectedDiseaseCatalogItem
     val patientsState by patientViewModel.patientsState.collectAsState()
     val singleRecordState by diseaseViewModel.singleRecordState.collectAsState()
-    
-    val targetRecordId = recordId
 
-    LaunchedEffect(targetRecordId) {
-        if (targetRecordId != null && targetRecordId != -1) {
-            diseaseViewModel.fetchDiseaseRecord(targetRecordId, userId = userId)
+    LifecycleResumeEffect(recordId) {
+        if (recordId != null && recordId != -1) {
+            diseaseViewModel.fetchDiseaseRecord(recordId, userId = userId)
         }
         patientViewModel.fetchPatients(userId = userId)
+        onPauseOrDispose {}
     }
 
     // Prefer data from the fresh single fetch if available
@@ -146,12 +143,12 @@ fun DiseaseDetailsByRecordScreen(
     
     var resolvedDisease: Disease? = freshRecord?.let { r ->
         Disease(
-            recordId = r.recordId ?: targetRecordId,
+            recordId = r.recordId ?: recordId,
             name = r.diseaseName,
             status = r.status ?: "Active",
             severity = r.severity ?: "Medium",
             doctorPrimary = r.doctor,
-            diagnosisDate = r.date,
+            diagnosisDate = r.diagnosisDate,
             notes = r.notes
         )
     }
@@ -160,7 +157,7 @@ fun DiseaseDetailsByRecordScreen(
     
     if (resolvedDisease == null) {
         for (p in globalPatients) {
-            val d = p.diseases?.find { it.recordId == targetRecordId }
+            val d = p.diseases?.find { it.recordId == recordId }
             if (d != null) {
                 resolvedDisease = d
                 patientId = p.id?.toString()
@@ -189,33 +186,32 @@ fun DiseaseDetailsByRecordScreen(
         }
     ) { paddingValues ->
         if (resolvedDisease != null) {
-            val resolvedPatientId = patientId ?: catalogItem?.patientId ?: freshRecord?.patientId?.toString()
+            val resolvedPatientId = patientId ?: catalogItem?.patientId ?: freshRecord?.patientId
             val patientName = (globalPatients.find { it.id?.toString() == resolvedPatientId }?.name ?: freshRecord?.patientName ?: catalogItem?.patientName ?: "Unknown Patient")
 
             DiseaseDetailsContent(
                 navController = navController,
                 paddingValues = paddingValues,
-                diseaseName = resolvedDisease?.name ?: catalogItem?.displayName ?: "Disease",
-                status = resolvedDisease?.status ?: catalogItem?.status ?: "Active",
+                diseaseName = resolvedDisease.name ?: catalogItem?.displayName ?: "Disease",
+                status = resolvedDisease.status,
                 patientName = patientName,
-                severity = resolvedDisease?.severity ?: catalogItem?.severity ?: "Medium",
-                doctor = resolvedDisease?.assignedDoctor ?: catalogItem?.doctor ?: "Not Assigned",
-                diagnosisDate = resolvedDisease?.diagnosisDate ?: catalogItem?.diagnosisDate,
-                notes = (resolvedDisease?.notes ?: catalogItem?.notes)?.takeIf { it.isNotBlank() },
+                severity = resolvedDisease.severity,
+                doctor = resolvedDisease.assignedDoctor,
+                diagnosisDate = resolvedDisease.diagnosisDate ?: catalogItem?.diagnosisDate,
+                notes = (resolvedDisease.notes ?: catalogItem?.notes)?.takeIf { it.isNotBlank() },
                 patientId = resolvedPatientId,
-                diseaseId = resolvedDisease?.localId,
-                recordId = targetRecordId,
+                diseaseId = resolvedDisease.localId,
+                recordId = recordId,
                 userId = userId,
-                isLoadingExtra = isLoading && resolvedDisease == null
+                isLoadingExtra = isLoading && freshRecord == null,
+                viewModel = diseaseViewModel
             )
         } else {
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                if (singleRecordState is SingleRecordResult.Loading) {
-                    CircularProgressIndicator()
-                } else if (singleRecordState is SingleRecordResult.Error) {
-                    Text((singleRecordState as SingleRecordResult.Error).message)
-                } else {
-                    Text("No data available.")
+                when (singleRecordState) {
+                    is SingleRecordResult.Loading -> CircularProgressIndicator()
+                    is SingleRecordResult.Error -> Text((singleRecordState as SingleRecordResult.Error).message)
+                    else -> Text("No data available.")
                 }
             }
         }
@@ -237,10 +233,9 @@ fun DiseaseDetailsContent(
     diseaseId: String?,
     recordId: Int? = null,
     userId: Int = -1,
-    isLoadingExtra: Boolean = false
+    isLoadingExtra: Boolean = false,
+    viewModel: DiseaseViewModel
 ) {
-    val context = LocalContext.current
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -284,40 +279,31 @@ fun DiseaseDetailsContent(
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(patientName, fontSize = 15.sp, color = Color.DarkGray)
-                // Show phone number if we have the patient record
-                globalPatients.find { it.id?.toString() == patientId }?.displayPhone?.takeIf { it.isNotBlank() }?.let {
-                    Text("Phone: $it", fontSize = 13.sp, color = Color.Gray)
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = Color(0xFFE0E0E0))
-
-                DetailRow(label = "Severity", value = severity)
-                Spacer(modifier = Modifier.height(6.dp))
-                DetailRow(label = "Assigned Doctor", value = doctor.takeIf { it.isNotBlank() } ?: "Not assigned")
                 
-                // Date removed per request
+                Text(
+                    text = "Patient: $patientName",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
 
-                Spacer(modifier = Modifier.height(6.dp))
-                DetailRow(label = "Notes", value = notes?.takeIf { it.isNotBlank() } ?: "None")
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = Color.LightGray.copy(alpha = 0.5f))
 
-                if (isLoadingExtra) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Loading details…", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
+                InfoRow(label = "Severity", value = severity, icon = null)
+                InfoRow(label = "Assigned Doctor", value = doctor, icon = null)
+                InfoRow(label = "Diagnosis Date", value = diagnosisDate ?: "N/A", icon = Icons.Default.DateRange)
+
+                if (!notes.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Clinical Notes", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(notes, fontSize = 14.sp, color = Color.DarkGray)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
                 onClick = {
                     if (recordId != null) {
@@ -325,87 +311,55 @@ fun DiseaseDetailsContent(
                     } else if (patientId != null && diseaseId != null) {
                         val encodedPid = Uri.encode(patientId)
                         val encodedDid = Uri.encode(diseaseId)
-                        navController.navigate("update_status/$encodedPid/$encodedDid?recordId=$recordId&userId=$userId")
-                    } else {
-                        Toast.makeText(context, "Cannot update: ID mapping missing.", Toast.LENGTH_SHORT).show()
+                        navController.navigate("update_status/$encodedPid/$encodedDid?userId=$userId")
                     }
                 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5)),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Update Status", fontSize = 12.sp)
-            }
-
-            var showDeleteDialog by remember { mutableStateOf(false) }
-            val diseaseViewModel: DiseaseViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-
-            Button(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Delete Record", fontSize = 12.sp)
-            }
-
-            if (showDeleteDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialog = false },
-                    title = { Text("Delete Disease Record") },
-                    text = { Text("Are you sure you want to delete this disease record? This cannot be undone.") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                showDeleteDialog = false
-                                recordId?.let { diseaseViewModel.deletePatientDisease(it, userId = userId) }
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
-                        ) {
-                            Text("Delete")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteDialog = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                )
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Update Status")
             }
 
             OutlinedButton(
                 onClick = {
-                    if (patientId != null) {
-                        val encodedPid = Uri.encode(patientId)
-                        navController.navigate("disease_history/$encodedPid?diseaseName=$diseaseName&userId=$userId")
-                    } else {
-                        Toast.makeText(context, "Patient history unavailable.", Toast.LENGTH_SHORT).show()
+                    if (recordId != null) {
+                        viewModel.deletePatientDisease(recordId, userId = userId)
                     }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("View History", fontSize = 13.sp)
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Delete Record")
             }
+        }
+        
+        if (isLoadingExtra) {
+            Spacer(modifier = Modifier.height(16.dp))
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(text = "$label: ", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Text(text = value, fontSize = 14.sp, color = Color.DarkGray)
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DiseaseDetailsScreenPreview() {
-    DatabaseOdDiseaseStatusTheme {
-        DiseaseDetailsScreen(navController = rememberNavController(), patientId = "YJ-555 0101", diseaseId = null)
+fun InfoRow(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector?) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = Color(0xFF3F51B5), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+        Column {
+            Text(label, fontSize = 12.sp, color = Color.Gray)
+            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        }
     }
 }

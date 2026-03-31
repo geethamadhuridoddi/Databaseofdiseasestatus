@@ -75,6 +75,9 @@ fun AddPatientScreen(
                         "severity" to "Medium",
                         "diagnosis_date" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()),
                         "doctor" to nameToUse,
+                        "doctor_name" to nameToUse,
+                        "assigned_doctor" to nameToUse,
+                        "primary_doctor" to nameToUse,
                         "notes" to "Automatically assigned upon patient registration."
                     )
 
@@ -312,6 +315,7 @@ fun AddPatientScreen(
                             "name" to name,
                             "age" to age,
                             "gender" to gender,
+                            "phone" to phone,
                             "phone_number" to phone,
                             "address" to address
                         )

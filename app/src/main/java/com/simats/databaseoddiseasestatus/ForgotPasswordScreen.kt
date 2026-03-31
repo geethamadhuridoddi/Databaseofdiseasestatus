@@ -26,12 +26,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun ForgotPasswordScreen(navController: NavController, authViewModel: AuthViewModel = viewModel()) {
     var email by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
     val forgotPasswordState by authViewModel.forgotPasswordState.collectAsState()
 
     LaunchedEffect(forgotPasswordState) {
         if (forgotPasswordState is ForgotPasswordResult.Success) {
             if (navController.graph != null) {
-                navController.navigate("otp_verification/$email")
+                navController.navigate("otp_verification/${email.trim()}")
                 authViewModel.resetForgotPasswordState()
             }
         }
@@ -113,26 +114,29 @@ fun ForgotPasswordScreen(navController: NavController, authViewModel: AuthViewMo
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            when (val state = forgotPasswordState) {
-                is ForgotPasswordResult.Error -> {
-                    Text(
-                        text = state.message,
-                        color = Color.Red,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                ForgotPasswordResult.Loading -> {
-                    CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.padding(bottom = 16.dp))
-                }
-                else -> {}
+            // Show Server Error or Local Validation Error
+            val displayError = (forgotPasswordState as? ForgotPasswordResult.Error)?.message ?: localError
+            if (displayError != null) {
+                Text(
+                    text = displayError,
+                    color = Color.Red,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            if (forgotPasswordState is ForgotPasswordResult.Loading) {
+                CircularProgressIndicator(color = Color(0xFF03A9F4), modifier = Modifier.padding(bottom = 16.dp))
             }
 
             // Input Field
             TextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = { 
+                    email = it
+                    localError = null 
+                },
                 placeholder = { Text("Email Address:", color = Color(0xFF03A9F4).copy(alpha = 0.7f)) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -145,7 +149,8 @@ fun ForgotPasswordScreen(navController: NavController, authViewModel: AuthViewMo
                     focusedTextColor = Color(0xFF01579B),
                     unfocusedTextColor = Color(0xFF01579B)
                 ),
-                shape = RoundedCornerShape(4.dp)
+                shape = RoundedCornerShape(4.dp),
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -153,8 +158,13 @@ fun ForgotPasswordScreen(navController: NavController, authViewModel: AuthViewMo
             // Authenticate (Send OTP) Button
             OutlinedButton(
                 onClick = {
-                    if (email.isNotBlank()) {
-                        authViewModel.forgotPassword(mapOf("email" to email))
+                    val trimmedEmail = email.trim()
+                    if (trimmedEmail.isBlank()) {
+                        localError = "Email cannot be empty"
+                    } else if (!trimmedEmail.contains("@")) {
+                        localError = "Please enter a valid email address"
+                    } else {
+                        authViewModel.forgotPassword(mapOf("email" to trimmedEmail))
                     }
                 },
                 modifier = Modifier

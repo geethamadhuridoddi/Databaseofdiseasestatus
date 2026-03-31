@@ -64,7 +64,12 @@ fun PatientsScreen(
 
     LifecycleResumeEffect(currentStatusFilter) {
         try {
-            val apiFilter = if (currentStatusFilter == "HasDisease") null else currentStatusFilter
+            val apiFilter = when (currentStatusFilter) {
+                "All" -> null
+                "HasDisease" -> null
+                else -> currentStatusFilter
+            }
+            android.util.Log.d("PatientsScreen", "Fetching patients: filter=$apiFilter, userId=$userId")
             viewModel.fetchPatients(apiFilter, userId = if (userId != -1) userId else null)
         } catch (e: Exception) {
             android.util.Log.e("PatientsScreen", "Error fetching patients", e)
@@ -211,14 +216,15 @@ fun PatientsScreen(
                             val statusMatches = when (filterVal) {
                                 "All" -> true
                                 "HasDisease" -> (patient.diseaseCount ?: 0) > 0 || !patient.diseases.isNullOrEmpty()
-                                "Critical" -> patient.diseases?.any { d ->
-                                    d.status.trim().equals("Critical", ignoreCase = true) || d.severity.trim().equals("Critical", ignoreCase = true)
-                                } == true
                                 else -> {
-                                    // For other filters like Active, Recovering, etc.
+                                    // If we fetched the patient using a status filter from the API, 
+                                    // we can trust that the API returned patients who match that status.
+                                    // We only double-filter if we are in "All" or "HasDisease" view where we want to filter from the full list.
+                                    // However, to keep the client-side interactivity consistent:
                                     patient.diseases?.any { d ->
-                                        d.status.trim().equals(filterVal, ignoreCase = true)
-                                    } == true
+                                        d.status.trim().equals(filterVal, ignoreCase = true) || 
+                                        d.severity.trim().equals(filterVal, ignoreCase = true)
+                                    } ?: true // Fallback to true if we don't have disease info yet
                                 }
                             }
 

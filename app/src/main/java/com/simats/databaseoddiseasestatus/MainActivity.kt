@@ -65,6 +65,20 @@ fun AppNavigation() {
             ForgotPasswordScreen(navController)
         }
         composable(
+            "otp_verification/{email}",
+            arguments = listOf(navArgument("email") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            OtpVerificationScreen(navController, email)
+        }
+        composable(
+            "reset_password/{email}",
+            arguments = listOf(navArgument("email") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            ResetPasswordScreen(navController, email)
+        }
+        composable(
             "dashboard/{email}?userName={userName}&userId={userId}",
             arguments = listOf(
                 navArgument("email") { type = NavType.StringType },

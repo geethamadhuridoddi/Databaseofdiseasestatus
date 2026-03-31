@@ -14,7 +14,7 @@ import com.simats.databaseoddiseasestatus.ActivityLogItem
 data class RegistrationResponse(
     val message: String? = null,
     val error: String? = null,
-    @SerializedName("id")
+    @SerializedName("id", alternate = ["patient_id", "pk", "userId"])
     val patientId: Int? = null
 )
 
@@ -36,14 +36,14 @@ data class GenericResponse(
 data class AssignDiseaseResponse(
     val message: String? = null,
     val error: String? = null,
-    @SerializedName("record_id")
+    @SerializedName("record_id", alternate = ["id", "pk"])
     val recordId: Int? = null
 )
 
 data class UpdatePatientDiseaseResponse(
     val message: String? = null,
     val error: String? = null,
-    @SerializedName("patient_id")
+    @SerializedName("patient_id", alternate = ["id", "pk"])
     val patientId: Int? = null,
     @SerializedName("patient_name")
     val patientName: String? = null,
@@ -59,13 +59,13 @@ data class DashboardResponse(
     val totalPatients: Int,
     @SerializedName("total_diseases", alternate = ["diseases_count", "total_dis"])
     val totalDiseases: Int,
-    @SerializedName("total_cases", alternate = ["cases_count", "total_records", "total_cases_count"])
+    @SerializedName("total_cases", alternate = ["cases_count", "total_records", "total_cases_count", "total_cases_assigned"])
     val totalCases: Int,
-    @SerializedName("active_cases", alternate = ["active_count", "active"])
+    @SerializedName("active_cases", alternate = ["active_count", "active", "total_active"])
     val activeCases: Int,
-    @SerializedName("recovering_cases", alternate = ["recovering_count", "recovering"])
+    @SerializedName("recovering_cases", alternate = ["recovering_count", "recovering", "total_recovering"])
     val recoveringCases: Int,
-    @SerializedName("critical_cases", alternate = ["critical_count", "critical"])
+    @SerializedName("critical_cases", alternate = ["critical_count", "critical", "total_critical"])
     val criticalCases: Int,
     @SerializedName("status_summary", alternate = ["status_counts", "stats"])
     val statusSummary: List<StatusCount>? = null,
@@ -94,26 +94,33 @@ data class DiseaseCatalogItem(
     @SerializedName("disease")
     val disease: String? = null,
     
-    @SerializedName("name")
-    val name: String? = null,
+    @SerializedName("name", alternate = ["alternate_name"])
+    val aliasName: String? = null,
     
-    @SerializedName("status", alternate = ["current_status", "condition"])
+    @SerializedName("status", alternate = ["current_status", "condition", "patient_status"])
     val status: String? = null,
-    @SerializedName("patient_id", alternate = ["patient"])
+    
+    @SerializedName("patient_id")
     val patientId: String? = null,
-    @SerializedName("patient_name", alternate = ["patient_display_name"])
+    
+    @SerializedName("patient_name", alternate = ["patient_display_name", "patient", "user_name"])
     val patientName: String? = null,
+    
+    @SerializedName("doctor", alternate = ["assigned_doctor", "doctor_name", "primary_doctor", "doctor_display_name", "staff_name"])
     val doctor: String? = null,
-    @SerializedName("severity", alternate = ["level"])
+    
+    @SerializedName("severity", alternate = ["level", "case_severity"])
     val severity: String? = null,
+    
     @SerializedName("diagnosis_date", alternate = ["date"])
     val diagnosisDate: String? = null,
+
     val notes: String? = null,
     @SerializedName("default_severity")
     val defaultSeverity: String? = null
 ) {
     val displayName: String 
-        get() = diseaseName ?: disease ?: name ?: "Unknown Disease"
+        get() = diseaseName ?: disease ?: aliasName ?: "Unknown Disease"
 }
 
 // --- Report Data Classes ---
@@ -214,10 +221,10 @@ interface ApiService {
         @Body body: RequestBody
     ): Call<ResponseBody>
 
-    @GET("disease/{record_id}/")
+    @GET("diseases/{record_id}/detail/")
     fun getDiseaseRecord(@Path("record_id") recordId: Int, @Query("user_id") userId: Int? = null): Call<ResponseBody>
 
-    @DELETE("disease/{record_id}/delete/")
+    @DELETE("diseases/{record_id}/delete/")
     fun deletePatientDisease(@Path("record_id") recordId: Int, @Query("user_id") userId: Int? = null): Call<ResponseBody>
 
     @GET("patients/{patient_id}/history/")
@@ -227,7 +234,7 @@ interface ApiService {
     @POST("diseases/add/")
     fun addDisease(@Body body: RequestBody): Call<ResponseBody>
 
-    @GET("patient-diseases/")
+    @GET("diseases/")
     fun getDiseases(@Query("user_id") userId: Int? = null): Call<ResponseBody>
 
     @PUT("diseases/{disease_id}/update/")
@@ -291,5 +298,3 @@ interface ApiService {
     @POST("logout/")
     fun logout(): Call<ResponseBody>
 }
-
-

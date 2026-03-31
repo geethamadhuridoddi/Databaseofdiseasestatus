@@ -73,28 +73,45 @@ class PatientViewModel : ViewModel() {
                             if (response.isSuccessful && response.body() != null) {
                                 val jsonString = response.body()!!.string()
                                 
-                                val patients: List<Patient> = if (!status.isNullOrBlank() && status != "All") {
-                                    val caseType = object : TypeToken<List<CaseRecord>>() {}.type
-                                    val cases: List<CaseRecord> = Gson().fromJson(jsonString, caseType)
-                                    cases?.map { it.toPatient() } ?: emptyList()
-                                } else {
-                                    val patientType = object : TypeToken<List<Patient>>() {}.type
-                                    Gson().fromJson(jsonString, patientType) ?: emptyList()
+                                val patients: List<Patient> = try {
+                                    if (!status.isNullOrBlank() && status != "All") {
+                                        val caseType = object : TypeToken<List<CaseRecord>>() {}.type
+                                        val cases: List<CaseRecord> = Gson().fromJson(jsonString, caseType)
+                                        cases?.map { it.toPatient() } ?: emptyList()
+                                    } else {
+                                        val patientType = object : TypeToken<List<Patient>>() {}.type
+                                        val list: List<Patient> = Gson().fromJson(jsonString, patientType) ?: emptyList()
+                                        // If names are missing, it might be in CaseRecord format
+                                        if (list.isNotEmpty() && list.all { it.name == null || it.name == "Unknown" }) {
+                                            val caseType = object : TypeToken<List<CaseRecord>>() {}.type
+                                            val cases: List<CaseRecord> = Gson().fromJson(jsonString, caseType)
+                                            cases?.map { it.toPatient() } ?: list
+                                        } else {
+                                            list
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("PatientViewModel", "Parsing error, trying fallback", e)
+                                    val fallbackType = object : TypeToken<List<Patient>>() {}.type
+                                    Gson().fromJson(jsonString, fallbackType) ?: emptyList()
                                 }
                                 
-                                if (patients.isNotEmpty() || jsonString == "[]") {
+                                if (patients.isNotEmpty() || jsonString.trim() == "[]") {
                                     _patientsState.value = PatientsResult.Success(patients)
+                                    android.util.Log.d("PatientViewModel", "Successfully fetched ${patients.size} patients")
                                     // Update global cache only for "All" view to avoid mixing filtered/unfiltered
                                     if (status == null || status == "All") {
                                         globalPatients.clear()
                                         globalPatients.addAll(patients)
                                     }
                                 } else {
-                                    _patientsState.value = PatientsResult.Error("No patient data found")
+                                    _patientsState.value = PatientsResult.Error("No patient data found matching criteria")
                                 }
                             } else {
-                                Log.e("PatientViewModel", "Server error fetching patients: ${response.code()}")
-                                _patientsState.value = PatientsResult.Success(emptyList())
+                                val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
+                                val errorMsg = handleApiError(errorBody)
+                                Log.e("PatientViewModel", "Server error fetching patients: ${response.code()} - $errorMsg")
+                                _patientsState.value = PatientsResult.Error("Server error ($errorMsg)")
                             }
                         } catch (e: Exception) {
                             Log.e("PatientViewModel", "Error parsing patients list", e)
@@ -104,7 +121,7 @@ class PatientViewModel : ViewModel() {
 
                     override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
                         Log.e("PatientViewModel", "Network error fetching patients", t)
-                        _patientsState.value = PatientsResult.Success(emptyList())
+                        _patientsState.value = PatientsResult.Error("Network error: ${t.localizedMessage}")
                     }
                 })
             } catch (e: Exception) {

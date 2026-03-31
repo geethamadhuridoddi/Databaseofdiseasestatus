@@ -21,7 +21,7 @@ data class Disease(
     @SerializedName("diagnosis_date")
     val diagnosisDate: String? = null,
 
-    @SerializedName("doctor", alternate = ["assigned_doctor", "doctor_name", "primary_doctor"])
+    @SerializedName("doctor", alternate = ["assigned_doctor", "doctor_name", "primary_doctor", "staff_name", "doctor_display_name"])
     val doctorPrimary: String? = null,
 
     @SerializedName("assigned_doctor_secondary")

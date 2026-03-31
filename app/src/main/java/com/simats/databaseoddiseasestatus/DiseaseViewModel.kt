@@ -211,46 +211,48 @@ class DiseaseViewModel : ViewModel() {
                 ApiClient.instance.updatePatientDiseaseStatus(recordId, body).enqueue(object : Callback<ResponseBody> {
                     override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                         Log.i("API_DEBUG", "SERVER RESPONSE: ${response.code()}")
-                        if (response.isSuccessful) {
-                            _updateDiseaseState.value = UpdateDiseaseResult.Success
-                            val status = updateData["status"] ?: "Updated"
-                            addLocalNotification("Patient disease status updated to: $status")
+                        if (response.isSuccessful && response.body() != null) {
+                            try {
+                                val jsonString = response.body()!!.string()
+                                val body = Gson().fromJson(jsonString, UpdatePatientDiseaseResponse::class.java)
+                                if (body?.error != null) {
+                                    _updateDiseaseState.value = UpdateDiseaseResult.Error(body.error)
+                                } else {
+                                    _updateDiseaseState.value = UpdateDiseaseResult.Success
+                                    addLocalNotification("Patient disease status updated")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("DiseaseViewModel", "Parsing error", e)
+                                _updateDiseaseState.value = UpdateDiseaseResult.Error("Response parsing error")
+                            }
                         } else {
                             val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
-                            Log.e("API_DEBUG", "ERROR BODY: $errorBody")
-                            val lowercaseError = errorBody.lowercase()
-                            val errorMsg = if (lowercaseError.contains("<!doctype html>") || lowercaseError.contains("<html>") || lowercaseError.contains("<html")) {
-                                "Server error (Database or Path issue). Please check your backend connection."
-                            } else {
-                                errorBody.takeIf { it.isNotBlank() } ?: "Failed to update status."
-                            }
-                            _updateDiseaseState.value = UpdateDiseaseResult.Error(errorMsg)
+                            _updateDiseaseState.value = UpdateDiseaseResult.Error(errorBody.takeIf { it.isNotBlank() } ?: "Update failed")
                         }
                     }
 
                     override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                        Log.e("API_DEBUG", "NETWORK FAILURE", t)
                         _updateDiseaseState.value = UpdateDiseaseResult.Error("Network error: ${t.localizedMessage}")
                     }
                 })
             } catch (e: Exception) {
-                Log.e("DiseaseViewModel", "Launch error in updateStatus", e)
-                _updateDiseaseState.value = UpdateDiseaseResult.Error("Launch error: ${e.localizedMessage}")
+                _updateDiseaseState.value = UpdateDiseaseResult.Error("Error: ${e.localizedMessage}")
             }
         }
     }
 
-    fun deletePatientDisease(recordId: Int, userId: Int? = null) {
+    fun deleteDisease(diseaseId: Int) {
         _deleteDiseaseState.value = DeleteDiseaseResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.deletePatientDisease(recordId, userId = userId).enqueue(object : Callback<ResponseBody> {
+            ApiClient.instance.deleteDisease(diseaseId).enqueue(object : Callback<ResponseBody> {
                 override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful) {
                         _deleteDiseaseState.value = DeleteDiseaseResult.Success
-                        addLocalNotification("Disease record (ID: $recordId) has been deleted")
+                        addLocalNotification("Disease catalog entry deleted")
+                        fetchDiseases()
                     } else {
                         val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
-                        _deleteDiseaseState.value = DeleteDiseaseResult.Error("Failed to delete record: $errorBody")
+                        _deleteDiseaseState.value = DeleteDiseaseResult.Error(errorBody.takeIf { it.isNotBlank() } ?: "Delete failed")
                     }
                 }
 
@@ -261,27 +263,42 @@ class DiseaseViewModel : ViewModel() {
         }
     }
 
-    fun fetchDiseaseRecord(recordId: Int, userId: Int? = null) {
+    fun deletePatientDisease(recordId: Int, userId: Int?) {
+        _deleteDiseaseState.value = DeleteDiseaseResult.Loading
+        viewModelScope.launch {
+            ApiClient.instance.deletePatientDisease(recordId, userId).enqueue(object : Callback<ResponseBody> {
+                override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                    if (response.isSuccessful) {
+                        _deleteDiseaseState.value = DeleteDiseaseResult.Success
+                        addLocalNotification("Patient disease record deleted")
+                    } else {
+                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null } ?: ""
+                        _deleteDiseaseState.value = DeleteDiseaseResult.Error(errorBody.takeIf { it.isNotBlank() } ?: "Delete failed")
+                    }
+                }
+
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    _deleteDiseaseState.value = DeleteDiseaseResult.Error("Network error: ${t.localizedMessage}")
+                }
+            })
+        }
+    }
+
+    fun fetchDiseaseRecord(recordId: Int, userId: Int?) {
         _singleRecordState.value = SingleRecordResult.Loading
         viewModelScope.launch {
-            ApiClient.instance.getDiseaseRecord(recordId, userId = userId).enqueue(object : Callback<ResponseBody> {
+            ApiClient.instance.getDiseaseRecord(recordId, userId).enqueue(object : Callback<ResponseBody> {
                 override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                     if (response.isSuccessful && response.body() != null) {
                         try {
                             val jsonString = response.body()!!.string()
-                            val record = Gson().fromJson(jsonString, CaseRecord::class.java)
-                            if (record != null) {
-                                _singleRecordState.value = SingleRecordResult.Success(record)
-                            } else {
-                                _singleRecordState.value = SingleRecordResult.Error("Empty record response")
-                            }
+                            val disease: DiseaseCatalogItem = Gson().fromJson(jsonString, DiseaseCatalogItem::class.java)
+                            _singleRecordState.value = SingleRecordResult.Success(disease)
                         } catch (e: Exception) {
-                            Log.e("DiseaseViewModel", "Parsing error in fetchDiseaseRecord", e)
-                            _singleRecordState.value = SingleRecordResult.Error("Failed to parse record")
+                            _singleRecordState.value = SingleRecordResult.Error("Parsing error")
                         }
                     } else {
-                        val errorBody = try { response.errorBody()?.string() } catch (e: Exception) { null }
-                        _singleRecordState.value = SingleRecordResult.Error(errorBody ?: "Record not found")
+                        _singleRecordState.value = SingleRecordResult.Error("Failed to fetch record")
                     }
                 }
 
@@ -328,6 +345,6 @@ sealed class DeleteDiseaseResult {
 sealed class SingleRecordResult {
     object Idle : SingleRecordResult()
     object Loading : SingleRecordResult()
-    data class Success(val record: CaseRecord) : SingleRecordResult()
+    data class Success(val record: DiseaseCatalogItem) : SingleRecordResult()
     data class Error(val message: String) : SingleRecordResult()
 }
